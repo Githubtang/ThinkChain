@@ -74,7 +74,7 @@ import com.tyh.common.annotation.Excel;
 import com.tyh.common.annotation.Excel.ColumnType;
 import com.tyh.common.annotation.Excel.Type;
 import com.tyh.common.annotation.Excels;
-import com.tyh.common.config.RuoYiConfig;
+import com.tyh.common.config.ThinkChainConfig;
 import com.tyh.common.core.domain.AjaxResult;
 import com.tyh.common.core.text.Convert;
 import com.tyh.common.exception.UtilException;
@@ -1510,7 +1510,7 @@ public class ExcelUtil<T>
      */
     public String getAbsoluteFile(String filename)
     {
-        String downloadPath = RuoYiConfig.getDownloadPath() + filename;
+        String downloadPath = ThinkChainConfig.getDownloadPath() + filename;
         File desc = new File(downloadPath);
         if (!desc.getParentFile().exists())
         {

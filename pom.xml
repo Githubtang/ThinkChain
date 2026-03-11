@@ -57,6 +57,12 @@
                 <scope>import</scope>
             </dependency>
 
+<!--            <dependency>-->
+<!--                <groupId>org.mybatis</groupId>-->
+<!--                <artifactId>mybatis</artifactId>-->
+<!--                <version>3.5.16</version>-->
+<!--            </dependency>-->
+
             <!-- 阿里数据库连接池 -->
             <dependency>
                 <groupId>com.alibaba</groupId>
@@ -75,6 +81,12 @@
             <dependency>
                 <groupId>com.github.pagehelper</groupId>
                 <artifactId>pagehelper-spring-boot-starter</artifactId>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.mybatis.spring.boot</groupId>
+                        <artifactId>mybatis-spring-boot-starter</artifactId>
+                    </exclusion>
+                </exclusions>
                 <version>${pagehelper.boot.version}</version>
             </dependency>
 
@@ -154,11 +166,11 @@
             </dependency>
 
             <!-- 高级验证码 -->
-            <dependency>
-                <groupId>com.anji-plus</groupId>
-                <artifactId>captcha-spring-boot-starter</artifactId>
-                <version>1.4.0</version>
-            </dependency>
+<!--            <dependency>-->
+<!--                <groupId>com.anji-plus</groupId>-->
+<!--                <artifactId>captcha-spring-boot-starter</artifactId>-->
+<!--                <version>1.4.0</version>-->
+<!--            </dependency>-->
 
             <!-- 定时任务-->
             <dependency>
