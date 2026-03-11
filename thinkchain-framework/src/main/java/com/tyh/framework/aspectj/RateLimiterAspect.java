@@ -22,7 +22,7 @@ import com.tyh.common.utils.ip.IpUtils;
 /**
  * 限流处理
  *
- * @author ruoyi
+ * @author GithubTang
  */
 @Aspect
 @Component

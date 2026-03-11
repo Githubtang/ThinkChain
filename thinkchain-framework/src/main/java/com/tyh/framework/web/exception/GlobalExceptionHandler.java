@@ -22,7 +22,7 @@ import com.tyh.common.utils.html.EscapeUtil;
 /**
  * 全局异常处理器
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler

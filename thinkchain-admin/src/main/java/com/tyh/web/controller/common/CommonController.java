@@ -23,7 +23,7 @@ import com.tyh.framework.config.ServerConfig;
 /**
  * 通用请求处理
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @RestController
 @RequestMapping("/common")

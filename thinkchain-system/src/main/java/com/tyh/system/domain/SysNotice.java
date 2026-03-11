@@ -10,7 +10,7 @@ import com.tyh.common.xss.Xss;
 /**
  * 通知公告表 sys_notice
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class SysNotice extends BaseEntity
 {

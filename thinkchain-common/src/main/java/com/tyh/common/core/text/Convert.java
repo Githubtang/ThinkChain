@@ -12,7 +12,7 @@ import com.tyh.common.utils.StringUtils;
 /**
  * 类型转换器
  *
- * @author ruoyi
+ * @author GithubTang
  */
 public class Convert
 {

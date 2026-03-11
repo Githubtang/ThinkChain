@@ -26,7 +26,7 @@ import com.tyh.system.service.ISysUserOnlineService;
 /**
  * 在线用户监控
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @RestController
 @RequestMapping("/monitor/online")

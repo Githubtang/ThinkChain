@@ -3,7 +3,7 @@ package com.tyh.system.domain;
 /**
  * 当前在线会话
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class SysUserOnline
 {

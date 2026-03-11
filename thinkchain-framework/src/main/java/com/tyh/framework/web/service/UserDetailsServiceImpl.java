@@ -18,7 +18,7 @@ import com.tyh.system.service.ISysUserService;
 /**
  * 用户验证处理
  *
- * @author ruoyi
+ * @author GithubTang
  */
 @Service
 public class UserDetailsServiceImpl implements UserDetailsService

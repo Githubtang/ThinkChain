@@ -7,7 +7,7 @@ import com.tyh.common.utils.ServletUtils;
 /**
  * 服务相关配置
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @Component
 public class ServerConfig

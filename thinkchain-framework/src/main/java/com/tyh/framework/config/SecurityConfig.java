@@ -22,7 +22,7 @@ import com.tyh.framework.security.handle.LogoutSuccessHandlerImpl;
 /**
  * spring security配置
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @EnableMethodSecurity(prePostEnabled = true, securedEnabled = true)
 @Configuration

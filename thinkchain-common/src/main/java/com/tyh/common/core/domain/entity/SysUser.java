@@ -17,7 +17,7 @@ import com.tyh.common.xss.Xss;
 /**
  * 用户对象 sys_user
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class SysUser extends BaseEntity
 {

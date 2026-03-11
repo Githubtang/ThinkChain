@@ -3,7 +3,7 @@ package com.tyh.common.utils;
 /**
  * 脱敏工具类
  *
- * @author ruoyi
+ * @author GithubTang
  */
 public class DesensitizedUtil
 {

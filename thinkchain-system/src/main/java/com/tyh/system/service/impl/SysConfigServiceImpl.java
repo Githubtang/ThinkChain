@@ -18,7 +18,7 @@ import com.tyh.system.service.ISysConfigService;
 /**
  * 参数配置 服务层实现
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @Service
 public class SysConfigServiceImpl implements ISysConfigService

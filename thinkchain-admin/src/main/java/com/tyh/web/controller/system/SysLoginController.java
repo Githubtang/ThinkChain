@@ -27,7 +27,7 @@ import com.tyh.system.service.ISysMenuService;
 /**
  * 登录验证
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @RestController
 public class SysLoginController

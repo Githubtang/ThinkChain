@@ -5,7 +5,7 @@ import com.tyh.common.utils.DateUtils;
 import com.tyh.common.utils.StringUtils;
 
 /**
- * @author ruoyi 序列生成类
+ * @author GithubTang 序列生成类
  */
 public class Seq
 {

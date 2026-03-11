@@ -16,7 +16,7 @@ import com.tyh.common.exception.ServiceException;
 /**
  * 安全服务工具类
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class SecurityUtils
 {

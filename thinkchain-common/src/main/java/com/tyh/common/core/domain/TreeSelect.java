@@ -12,7 +12,7 @@ import com.tyh.common.utils.StringUtils;
 /**
  * Treeselect树结构实体类
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class TreeSelect implements Serializable
 {

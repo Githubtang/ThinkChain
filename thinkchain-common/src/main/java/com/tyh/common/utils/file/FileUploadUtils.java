@@ -19,7 +19,7 @@ import com.tyh.common.utils.uuid.Seq;
 /**
  * 文件上传工具类
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class FileUploadUtils
 {

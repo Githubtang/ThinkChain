@@ -7,7 +7,7 @@ import com.tyh.common.core.domain.entity.SysMenu;
 /**
  * 菜单表 数据层
  *
- * @author ruoyi
+ * @author GithubTang
  */
 public interface SysMenuMapper
 {

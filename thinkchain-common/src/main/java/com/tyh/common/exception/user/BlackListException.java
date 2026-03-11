@@ -3,7 +3,7 @@ package com.tyh.common.exception.user;
 /**
  * 黑名单IP异常类
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class BlackListException extends UserException
 {

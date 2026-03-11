@@ -7,7 +7,7 @@ import com.tyh.common.core.domain.entity.SysUser;
 /**
  * 用户 业务层
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public interface ISysUserService
 {

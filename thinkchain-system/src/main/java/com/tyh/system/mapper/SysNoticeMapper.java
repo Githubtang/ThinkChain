@@ -6,7 +6,7 @@ import com.tyh.system.domain.SysNotice;
 /**
  * 通知公告表 数据层
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public interface SysNoticeMapper
 {

@@ -12,7 +12,7 @@ import com.tyh.common.core.domain.BaseEntity;
 /**
  * 岗位表 sys_post
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class SysPost extends BaseEntity
 {

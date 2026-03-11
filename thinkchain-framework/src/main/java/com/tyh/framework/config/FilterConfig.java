@@ -17,7 +17,7 @@ import com.tyh.common.utils.StringUtils;
 /**
  * Filter配置
  *
- * @author ruoyi
+ * @author GithubTang
  */
 @Configuration
 public class FilterConfig

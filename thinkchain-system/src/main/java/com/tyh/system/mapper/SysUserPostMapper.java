@@ -6,7 +6,7 @@ import com.tyh.system.domain.SysUserPost;
 /**
  * 用户与岗位关联表 数据层
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public interface SysUserPostMapper
 {

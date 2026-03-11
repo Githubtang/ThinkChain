@@ -22,7 +22,7 @@ import com.tyh.system.service.ISysUserService;
 /**
  * 注册校验方法
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @Component
 public class SysRegisterService

@@ -9,7 +9,7 @@ import com.tyh.common.utils.StringUtils;
 /**
  * 首页
  *
- * @author ruoyi
+ * @author GithubTang
  */
 @RestController
 public class SysIndexController

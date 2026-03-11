@@ -3,7 +3,7 @@ package com.tyh.common.constant;
 /**
  * 任务调度通用常量
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class ScheduleConstants
 {

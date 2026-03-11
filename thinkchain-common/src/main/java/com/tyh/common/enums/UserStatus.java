@@ -3,7 +3,7 @@ package com.tyh.common.enums;
 /**
  * 用户状态
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public enum UserStatus
 {

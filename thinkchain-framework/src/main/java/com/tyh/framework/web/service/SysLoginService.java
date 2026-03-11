@@ -31,7 +31,7 @@ import com.tyh.system.service.ISysUserService;
 /**
  * 登录校验方法
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @Component
 public class SysLoginService

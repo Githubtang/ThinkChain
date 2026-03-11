@@ -3,7 +3,7 @@ package com.tyh.common.enums;
 /**
  * 数据源
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public enum DataSourceType
 {

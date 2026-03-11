@@ -29,7 +29,7 @@ import com.tyh.system.service.ISysUserService;
 /**
  * 个人信息 业务处理
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @RestController
 @RequestMapping("/system/user/profile")

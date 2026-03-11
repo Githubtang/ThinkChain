@@ -6,7 +6,7 @@ import com.tyh.system.domain.SysConfig;
 /**
  * 参数配置 服务层
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public interface ISysConfigService
 {

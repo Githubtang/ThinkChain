@@ -6,7 +6,7 @@ import com.tyh.common.utils.StringUtils;
 /**
  * sql操作工具类
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class SqlUtil
 {

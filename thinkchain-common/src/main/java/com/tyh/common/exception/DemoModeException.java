@@ -3,7 +3,7 @@ package com.tyh.common.exception;
 /**
  * 演示模式异常
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class DemoModeException extends RuntimeException
 {

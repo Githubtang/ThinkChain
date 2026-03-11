@@ -9,7 +9,7 @@ import com.tyh.common.core.domain.BaseEntity;
 /**
  * 系统访问记录表 sys_logininfor
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class SysLogininfor extends BaseEntity
 {

@@ -5,7 +5,7 @@ import com.tyh.common.utils.Arith;
 /**
  * CPU相关信息
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class Cpu
 {

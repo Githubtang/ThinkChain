@@ -16,7 +16,7 @@ import com.tyh.framework.security.context.AuthenticationContextHolder;
 /**
  * 登录密码方法
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @Component
 public class SysPasswordService

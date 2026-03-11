@@ -28,7 +28,7 @@ import com.tyh.system.service.ISysDictTypeService;
 /**
  * 数据字典信息
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @RestController
 @RequestMapping("/system/dict/data")

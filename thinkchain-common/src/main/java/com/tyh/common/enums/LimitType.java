@@ -3,7 +3,7 @@ package com.tyh.common.enums;
 /**
  * 限流类型
  *
- * @author ruoyi
+ * @author GithubTang
  */
 
 public enum LimitType

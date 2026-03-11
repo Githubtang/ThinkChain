@@ -27,7 +27,7 @@ import jakarta.servlet.ServletResponse;
 /**
  * druid 配置多数据源
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @Configuration
 public class DruidConfig

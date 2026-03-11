@@ -3,7 +3,7 @@ package com.tyh.common.enums;
 /**
  * 操作人类别
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public enum OperatorType
 {

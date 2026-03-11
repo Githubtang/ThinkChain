@@ -3,7 +3,7 @@ package com.tyh.common.utils.uuid;
 /**
  * ID生成器工具类
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class IdUtils
 {

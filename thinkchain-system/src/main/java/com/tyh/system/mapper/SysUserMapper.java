@@ -8,7 +8,7 @@ import com.tyh.common.core.domain.entity.SysUser;
 /**
  * 用户表 数据层
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public interface SysUserMapper
 {

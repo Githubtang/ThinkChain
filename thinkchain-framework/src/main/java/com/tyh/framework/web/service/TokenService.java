@@ -1,17 +1,5 @@
 package com.tyh.framework.web.service;
 
-import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.TimeUnit;
-
-import io.jsonwebtoken.security.Keys;
-import jakarta.servlet.http.HttpServletRequest;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 import com.tyh.common.constant.CacheConstants;
 import com.tyh.common.constant.Constants;
 import com.tyh.common.core.domain.model.LoginUser;
@@ -24,14 +12,24 @@ import com.tyh.common.utils.ip.IpUtils;
 import com.tyh.common.utils.uuid.IdUtils;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * token验证处理
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @Component
 public class TokenService
@@ -182,9 +180,11 @@ public class TokenService
      */
     private String createToken(Map<String, Object> claims)
     {
+        SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
         String token = Jwts.builder()
-                .setClaims(claims)
-                .signWith(SignatureAlgorithm.HS512, secret).compact();
+                .claims(claims)
+                .signWith(key)
+                .compact();
         return token;
     }
 
@@ -196,16 +196,12 @@ public class TokenService
      */
     private Claims parseToken(String token)
     {
-        SecretKey key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
         return Jwts.parser()
                 .verifyWith(key)                    // 🔑 设置验签密钥
                 .build()                            // 🔨 构建 parser
                 .parseSignedClaims(token)           // 📦 解析 token（方法名变更）
                 .getPayload();                      // 🎯 获取 Claims（getBody → getPayload）
-//        return Jwts.parser()
-//                .setSigningKey(secret)
-//                .parseClaimsJws(token)
-//                .getBody();
     }
 
     /**

@@ -15,7 +15,7 @@ import com.tyh.common.utils.html.EscapeUtil;
 /**
  * XSS过滤处理
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class XssHttpServletRequestWrapper extends HttpServletRequestWrapper
 {

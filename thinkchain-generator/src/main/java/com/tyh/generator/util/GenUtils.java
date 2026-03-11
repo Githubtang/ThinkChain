@@ -11,7 +11,7 @@ import com.tyh.generator.domain.GenTableColumn;
 /**
  * 代码生成器 工具类
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class GenUtils
 {

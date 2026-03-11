@@ -3,7 +3,7 @@ package com.tyh.common.exception;
 /**
  * 全局异常
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class GlobalException extends RuntimeException
 {

@@ -9,7 +9,7 @@ import com.tyh.common.utils.StringUtils;
 /**
  * 获取IP方法
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class IpUtils
 {

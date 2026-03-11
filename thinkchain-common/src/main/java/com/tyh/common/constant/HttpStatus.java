@@ -3,7 +3,7 @@ package com.tyh.common.constant;
 /**
  * 返回状态码
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class HttpStatus
 {

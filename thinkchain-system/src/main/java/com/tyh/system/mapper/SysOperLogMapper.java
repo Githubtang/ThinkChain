@@ -6,7 +6,7 @@ import com.tyh.system.domain.SysOperLog;
 /**
  * 操作日志 数据层
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public interface SysOperLogMapper
 {

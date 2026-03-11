@@ -14,7 +14,7 @@ import com.tyh.common.utils.StringUtils;
 /**
  * Repeatable 过滤器
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class RepeatableFilter implements Filter
 {

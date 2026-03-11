@@ -5,7 +5,7 @@ import com.tyh.common.exception.base.BaseException;
 /**
  * 文件信息异常类
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class FileException extends BaseException
 {

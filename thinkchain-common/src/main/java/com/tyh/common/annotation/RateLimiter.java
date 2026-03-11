@@ -11,7 +11,7 @@ import com.tyh.common.enums.LimitType;
 /**
  * 限流注解
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)

@@ -25,7 +25,7 @@ import com.tyh.system.domain.SysCache;
 /**
  * 缓存监控
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @RestController
 @RequestMapping("/monitor/cache")

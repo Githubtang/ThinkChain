@@ -3,7 +3,7 @@ package com.tyh.common.exception;
 /**
  * 业务异常
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public final class ServiceException extends RuntimeException
 {

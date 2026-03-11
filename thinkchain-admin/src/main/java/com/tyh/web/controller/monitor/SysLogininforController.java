@@ -23,7 +23,7 @@ import com.tyh.system.service.ISysLogininforService;
 /**
  * 系统访问记录
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @RestController
 @RequestMapping("/monitor/logininfor")

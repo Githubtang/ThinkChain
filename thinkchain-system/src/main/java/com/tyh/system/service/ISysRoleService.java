@@ -8,7 +8,7 @@ import com.tyh.system.domain.SysUserRole;
 /**
  * 角色业务层
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public interface ISysRoleService
 {

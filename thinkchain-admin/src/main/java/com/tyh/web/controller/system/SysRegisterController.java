@@ -14,7 +14,7 @@ import com.tyh.system.service.ISysConfigService;
 /**
  * 注册验证
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 @RestController
 public class SysRegisterController extends BaseController

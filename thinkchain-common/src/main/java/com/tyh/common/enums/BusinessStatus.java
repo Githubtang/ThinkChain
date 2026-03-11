@@ -3,7 +3,7 @@ package com.tyh.common.enums;
 /**
  * 操作状态
  * 
- * @author ruoyi
+ * @author GithubTang
  *
  */
 public enum BusinessStatus

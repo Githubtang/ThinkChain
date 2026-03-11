@@ -5,7 +5,7 @@ import com.tyh.common.utils.Arith;
 /**
  * 內存相关信息
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class Mem
 {

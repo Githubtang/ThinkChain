@@ -12,7 +12,7 @@ import com.tyh.common.utils.http.HttpUtils;
 /**
  * 获取地址类
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class AddressUtils
 {

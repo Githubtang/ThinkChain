@@ -3,7 +3,7 @@ package com.tyh.common.exception.user;
 /**
  * 验证码失效异常类
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class CaptchaExpireException extends UserException
 {

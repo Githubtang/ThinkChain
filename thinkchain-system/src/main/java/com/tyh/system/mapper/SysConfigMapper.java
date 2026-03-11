@@ -6,7 +6,7 @@ import com.tyh.system.domain.SysConfig;
 /**
  * 参数配置 数据层
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public interface SysConfigMapper
 {

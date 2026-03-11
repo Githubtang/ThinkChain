@@ -5,7 +5,7 @@ import com.tyh.common.utils.StringUtils;
 /**
  * 分页数据
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class PageDomain
 {

@@ -7,7 +7,7 @@ import com.tyh.common.constant.Constants;
 /**
  * VelocityEngine工厂
  * 
- * @author ruoyi
+ * @author GithubTang
  */
 public class VelocityInitializer
 {
