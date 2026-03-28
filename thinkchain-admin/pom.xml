@@ -48,6 +48,12 @@
             <artifactId>thinkchain-framework</artifactId>
         </dependency>
 
+        <!-- Ai模块 -->
+        <dependency>
+            <groupId>com.tyh.chat</groupId>
+            <artifactId>thinkchain-chat</artifactId>
+        </dependency>
+
         <!-- 定时任务-->
         <dependency>
             <groupId>com.tyh</groupId>

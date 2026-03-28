@@ -20,6 +20,7 @@
         <spring-boot.version>3.5.11</spring-boot.version>
         <mybatis-spring-boot.version>3.0.5</mybatis-spring-boot.version>
         <mybatis-plus.version>3.5.16</mybatis-plus.version>
+        <langchain4j-community.version>1.12.2-beta22</langchain4j-community.version>
         <druid.version>1.2.27</druid.version>
         <yauaa.version>8.1.0</yauaa.version>
         <kaptcha.version>2.3.3</kaptcha.version>
@@ -54,6 +55,15 @@
                 <groupId>com.baomidou</groupId>
                 <artifactId>mybatis-plus-bom</artifactId>
                 <version>3.5.16</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- 模型社区依赖配置 -->
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-community-bom</artifactId>
+                <version>${langchain4j-community.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -160,6 +170,11 @@
             <!--                <artifactId>captcha-spring-boot-starter</artifactId>-->
             <!--                <version>1.4.0</version>-->
             <!--            </dependency>-->
+            <dependency>
+                <groupId>com.tyh.chat</groupId>
+                <artifactId>thinkchain-chat</artifactId>
+                <version>${thinkchain.version}</version>
+            </dependency>
 
             <!-- 定时任务-->
             <dependency>
@@ -206,6 +221,7 @@
         <module>thinkchain-quartz</module>
         <module>thinkchain-generator</module>
         <module>thinkchain-common</module>
+        <module>thinkchain-chat</module>
     </modules>
     <packaging>pom</packaging>
 
@@ -238,6 +254,17 @@
             <releases>
                 <enabled>true</enabled>
             </releases>
+        </repository>
+        <!-- 添加 LangChain4j 快照仓库 -->
+        <repository>
+            <id>langchain4j-snapshots</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
         </repository>
     </repositories>
 

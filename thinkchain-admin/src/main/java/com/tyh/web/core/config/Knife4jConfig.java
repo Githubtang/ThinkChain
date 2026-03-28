@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * @Author: GithubTang
- * @Description: TODO
+ * @Description: openAPi文档
  * @Date: 2026/3/12 19:48
  * @Version: 1.0
  */
