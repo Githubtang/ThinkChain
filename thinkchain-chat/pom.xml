@@ -1,0 +1,50 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.tyh</groupId>
+        <artifactId>thinkchain</artifactId>
+        <version>1.0.1</version>
+    </parent>
+
+    <groupId>com.tyh.chat</groupId>
+    <artifactId>thinkchain-chat</artifactId>
+    <packaging>jar</packaging>
+
+    <name>thinkchain-chat</name>
+    <url>http://maven.apache.org</url>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <langchain4j.version>1.12.2</langchain4j.version>
+        <langchain4j-open-ai.version>1.12.2-beta22</langchain4j-open-ai.version>
+        <langchain4j-dashscope.version>1.12.2-beta22</langchain4j-dashscope.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j</artifactId>
+            <version>${langchain4j.version}</version>
+        </dependency>
+
+        <!-- langchain4-open-ai依赖 -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai-spring-boot-starter</artifactId>
+            <version>${langchain4j-open-ai.version}</version>
+        </dependency>
+
+        <!-- DashScope：官方 SDK 由 langchain4j-community-dashscope-spring-boot-starter 传递引入，无需单独声明 dashscope-sdk-java -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-community-dashscope-spring-boot-starter</artifactId>
+        </dependency>
+
+        <!-- 通用模块 -->
+        <dependency>
+            <groupId>com.tyh</groupId>
+            <artifactId>thinkchain-common</artifactId>
+        </dependency>
+    </dependencies>
+</project>
