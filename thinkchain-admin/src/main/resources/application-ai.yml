@@ -1,30 +1,45 @@
 langchain4j:
-  # 定义多个模型配置
   multi-model:
-    enabled: true
-    # 当前启用的模型 (手动切换时用)
-    active-model: dashscope-qwen
     models:
       - name: openai-gpt4o
         provider: openai
-        api-key: "请在这里填 OpenAI Key"
-        base-url: https://api.openai.com/v1
-        model-name: gpt-4o
-        free-limit: 0  # 0 表示付费，优先级低
-        priority: 3
+        apiKey: "请在这里填 OpenAI Key"
+        baseUrl: "https://api.openai.com/v1"
+        modelName: "gpt-4o"
+        enabled: true
+        capabilities:
+          - text
+          - chat
 
-      - name: dashscope-qwen
+      - name: qwen3-omni-flash
         provider: dashscope
-        api-key: "sk-037f79dcfc324c8eb0f2d9fe37039be5"
-        base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-        model-name: qwen-plus
-        free-limit: 1000000  # 免费额度 (token)
-        priority: 1
+        apiKey: "请填写 DashScope API Key"
+        baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        modelName: "qwen3-omni-flash"
+        enabled: true
+        capabilities:
+          - text
+          - chat
+          - document
+          - image
+      - name: qwen3.5-plus
+        provider: dashscope
+        apiKey: "请填写 DashScope API Key"
+        baseUrl: "https://dashscope.aliyuncs.com/api/v1"
+        modelName: "qwen3.5-plus"
+        enabled: true
+        capabilities:
+          - text
+          - chat
+          - document
+          - image
 
       - name: zhipu-glm
         provider: zhipu
-        api-key: "请在这里填 ZhiPu Key"
-        base-url: https://open.bigmodel.cn/api/paas/v4
-        model-name: glm-4
-        free-limit: 1000000
-        priority: 2
+        apiKey: "请在这里填 ZhiPu Key"
+        baseUrl: "https://open.bigmodel.cn/api/paas/v4"
+        modelName: "glm-4"
+        enabled: true
+        capabilities:
+          - text
+          - chat
