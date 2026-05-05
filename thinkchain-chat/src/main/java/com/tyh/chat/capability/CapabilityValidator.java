@@ -1,6 +1,6 @@
 package com.tyh.chat.capability;
 
-import com.tyh.chat.registry.ModelRegistry;
+import com.tyh.chat.model.ModelEntry;
 import org.springframework.stereotype.Component;
 
 import java.util.Set;
@@ -20,7 +20,7 @@ public class CapabilityValidator {
      * @param model                  已注册的模型
      * @param requiredCapabilities   所需能力标签，null 或 empty 时不校验
      */
-    public void validate(ModelRegistry.ModelEntry model, Set<String> requiredCapabilities) {
+    public void validate(ModelEntry model, Set<String> requiredCapabilities) {
         if (requiredCapabilities == null || requiredCapabilities.isEmpty()) {
             return;
         }

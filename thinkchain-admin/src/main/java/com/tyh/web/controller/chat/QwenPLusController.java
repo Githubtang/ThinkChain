@@ -1,9 +1,9 @@
 package com.tyh.web.controller.chat;
 
-import com.tyh.chat.dto.ChatRequest;
-import com.tyh.chat.dto.Content;
-import com.tyh.chat.dto.Message;
-import com.tyh.chat.service.ChatService;
+import com.tyh.chat.chat.dto.ChatRequest;
+import com.tyh.chat.chat.dto.Content;
+import com.tyh.chat.chat.dto.Message;
+import com.tyh.chat.chat.service.ChatService;
 import com.tyh.common.core.domain.AjaxResult;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,7 +25,8 @@ import java.util.Set;
  */
 @Tag(name = "Ai对话")
 @RestController
-@RequestMapping("/ai/chat")
+@Deprecated
+@RequestMapping("/ai/qwen")
 public class QwenPLusController {
     
     private final ChatService chatService;

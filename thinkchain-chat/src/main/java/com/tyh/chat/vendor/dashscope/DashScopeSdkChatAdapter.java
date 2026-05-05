@@ -4,11 +4,12 @@ import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation;
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationParam;
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationResult;
 import com.alibaba.dashscope.common.MultiModalMessage;
-import com.tyh.chat.dto.ChatRequest;
-import com.tyh.chat.dto.Content;
-import com.tyh.chat.dto.Message;
-import com.tyh.chat.registry.ModelRegistry;
+import com.tyh.chat.chat.dto.ChatRequest;
+import com.tyh.chat.chat.dto.Content;
+import com.tyh.chat.chat.dto.Message;
+import com.tyh.chat.model.ModelEntry;
 import com.tyh.chat.vendor.VendorChatAdapter;
+import com.tyh.chat.vendor.VendorChatResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -22,7 +23,7 @@ import java.util.Objects;
 
 /**
  * 阿里云 DashScope 官方 Java SDK 适配器：通过 {@link MultiModalConversation} 调用多模态对话，
- * 将统一 {@link com.tyh.chat.dto.ChatRequest} 转为 {@link MultiModalMessage}。
+ * 将统一 {@link com.tyh.chat.chat.dto.ChatRequest} 转为 {@link MultiModalMessage}。
  *
  * @Author: GithubTang
  * @Description: DashScope 官方 SDK 多模态对话适配实现
@@ -43,7 +44,7 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
      * 调用 DashScope 多模态对话接口，将 {@link ChatRequest} 转为单次 {@link MultiModalMessage} 请求。
      */
     @Override
-    public String invoke(ModelRegistry.ModelEntry model, ChatRequest request) throws Exception {
+    public VendorChatResult invoke(ModelEntry model, ChatRequest request) throws Exception {
         Objects.requireNonNull(model, "model");
         Objects.requireNonNull(request, "request");
         List<Message> messages = request.getMessages();
@@ -64,7 +65,9 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
         if (text == null || text.isBlank()) {
             log.warn("DashScope 返回空文本, model={}", model.getName());
         }
-        return text != null ? text : "";
+        VendorChatResult chatResult = VendorChatResult.of(text != null ? text : "");
+        chatResult.setRawResponse(result != null ? result.toString() : null);
+        return chatResult;
     }
 
     /**

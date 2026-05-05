@@ -3,7 +3,7 @@ langchain4j:
     models:
       - name: openai-gpt4o
         provider: openai
-        apiKey: "请在这里填 OpenAI Key"
+        apiKey: ${OPENAI_API_KEY:}
         baseUrl: "https://api.openai.com/v1"
         modelName: "gpt-4o"
         enabled: true
@@ -13,7 +13,7 @@ langchain4j:
 
       - name: qwen3-omni-flash
         provider: dashscope
-        apiKey: "请填写 DashScope API Key"
+        apiKey: ${DASHSCOPE_API_KEY:}
         baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1"
         modelName: "qwen3-omni-flash"
         enabled: true
@@ -24,7 +24,7 @@ langchain4j:
           - image
       - name: qwen3.5-plus
         provider: dashscope
-        apiKey: "请填写 DashScope API Key"
+        apiKey: ${DASHSCOPE_API_KEY:}
         baseUrl: "https://dashscope.aliyuncs.com/api/v1"
         modelName: "qwen3.5-plus"
         enabled: true
@@ -36,7 +36,7 @@ langchain4j:
 
       - name: zhipu-glm
         provider: zhipu
-        apiKey: "请在这里填 ZhiPu Key"
+        apiKey: ${ZHIPU_API_KEY:}
         baseUrl: "https://open.bigmodel.cn/api/paas/v4"
         modelName: "glm-4"
         enabled: true

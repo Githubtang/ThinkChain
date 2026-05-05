@@ -1,8 +1,8 @@
 package com.tyh.chat.capability;
 
-import com.tyh.chat.dto.ChatRequest;
-import com.tyh.chat.dto.Content;
-import com.tyh.chat.dto.Message;
+import com.tyh.chat.chat.dto.ChatRequest;
+import com.tyh.chat.chat.dto.Content;
+import com.tyh.chat.chat.dto.Message;
 
 import java.util.LinkedHashSet;
 import java.util.Locale;

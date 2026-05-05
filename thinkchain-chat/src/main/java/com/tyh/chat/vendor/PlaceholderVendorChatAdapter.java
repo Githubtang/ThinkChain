@@ -1,7 +1,7 @@
 package com.tyh.chat.vendor;
 
-import com.tyh.chat.dto.ChatRequest;
-import com.tyh.chat.registry.ModelRegistry;
+import com.tyh.chat.chat.dto.ChatRequest;
+import com.tyh.chat.model.ModelEntry;
 
 /**
  * 尚未接入官方 SDK 的厂商占位实现：保证 Spring 容器中存在对应 {@link VendorChatAdapter} Bean，
@@ -26,7 +26,7 @@ public final class PlaceholderVendorChatAdapter implements VendorChatAdapter {
     }
 
     @Override
-    public String invoke(ModelRegistry.ModelEntry model, ChatRequest request) {
+    public VendorChatResult invoke(ModelEntry model, ChatRequest request) {
         throw new UnsupportedOperationException(
                 "厂商 [" + providerId + "] 尚未接入官方 Java SDK：请在 com.tyh.chat.vendor 下实现 VendorChatAdapter 并注册为 Spring Bean。");
     }
