@@ -1,0 +1,45 @@
+package com.tyh.chat.chat.dto;
+
+/**
+ * 多模态内容片段：文本、图片、文件、文档、视频或音频。
+ *
+ * @Author: GithubTang
+ * @Description: 多模态内容片段
+ * @Date: 2026/4/29
+ * @Version: 1.0
+ */
+public class Content {
+
+    /** 内容类型：text / image / file / document / video / audio。 */
+    private String type;
+
+    /** 文本内容，或图片场景下的 base64/data URL 数据。 */
+    private String text;
+
+    /** 可公开访问的资源 URL。 */
+    private String url;
+
+    public String getType() {
+        return type;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public String getText() {
+        return text;
+    }
+
+    public void setText(String text) {
+        this.text = text;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+}

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tyh.chat.conversation.mapper.ChatConversationMapper">
+
+    <resultMap type="ChatConversation" id="ChatConversationResult">
+        <id     property="id"           column="id"            />
+        <result property="userId"       column="user_id"       />
+        <result property="title"        column="title"         />
+        <result property="model"        column="model"         />
+        <result property="systemPrompt" column="system_prompt" />
+        <result property="createTime"   column="create_time"   />
+        <result property="updateTime"   column="update_time"   />
+    </resultMap>
+
+    <sql id="selectChatConversationVo">
+        select id, user_id, title, model, system_prompt, create_time, update_time
+        from chat_conversation
+    </sql>
+
+    <select id="selectChatConversationById" parameterType="String" resultMap="ChatConversationResult">
+        <include refid="selectChatConversationVo"/>
+        where id = #{id}
+    </select>
+
+    <select id="selectChatConversationList" parameterType="ChatConversation" resultMap="ChatConversationResult">
+        <include refid="selectChatConversationVo"/>
+        <where>
+            <if test="userId != null and userId != ''">
+                and user_id = #{userId}
+            </if>
+            <if test="model != null and model != ''">
+                and model = #{model}
+            </if>
+        </where>
+        order by update_time desc, create_time desc
+    </select>
+
+    <insert id="insertChatConversation" parameterType="ChatConversation">
+        insert into chat_conversation (
+            id, user_id, title, model, system_prompt, create_time, update_time
+        ) values (
+            #{id}, #{userId}, #{title}, #{model}, #{systemPrompt}, sysdate(), sysdate()
+        )
+    </insert>
+
+    <update id="updateChatConversation" parameterType="ChatConversation">
+        update chat_conversation
+        <set>
+            <if test="title != null and title != ''">title = #{title},</if>
+            <if test="model != null and model != ''">model = #{model},</if>
+            <if test="systemPrompt != null">system_prompt = #{systemPrompt},</if>
+            update_time = sysdate()
+        </set>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteChatConversationById" parameterType="String">
+        delete from chat_conversation where id = #{id}
+    </delete>
+
+</mapper>

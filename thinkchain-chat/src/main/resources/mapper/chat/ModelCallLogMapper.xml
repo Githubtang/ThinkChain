@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tyh.chat.log.mapper.ModelCallLogMapper">
+
+    <resultMap type="ModelCallLog" id="ModelCallLogResult">
+        <id     property="id"             column="id"              />
+        <result property="conversationId" column="conversation_id" />
+        <result property="messageId"      column="message_id"      />
+        <result property="model"          column="model"           />
+        <result property="provider"       column="provider"        />
+        <result property="requestBody"    column="request_body"    />
+        <result property="responseBody"   column="response_body"   />
+        <result property="status"         column="status"          />
+        <result property="errorMessage"   column="error_message"   />
+        <result property="elapsedMs"      column="elapsed_ms"      />
+        <result property="createTime"     column="create_time"     />
+    </resultMap>
+
+    <select id="selectModelCallLogList" parameterType="ModelCallLog" resultMap="ModelCallLogResult">
+        select id, conversation_id, message_id, model, provider, request_body, response_body,
+               status, error_message, elapsed_ms, create_time
+        from model_call_log
+        <where>
+            <if test="conversationId != null and conversationId != ''">
+                and conversation_id = #{conversationId}
+            </if>
+            <if test="model != null and model != ''">
+                and model = #{model}
+            </if>
+            <if test="provider != null and provider != ''">
+                and provider = #{provider}
+            </if>
+            <if test="status != null and status != ''">
+                and status = #{status}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <insert id="insertModelCallLog" parameterType="ModelCallLog">
+        insert into model_call_log (
+            id, conversation_id, message_id, model, provider, request_body,
+            response_body, status, error_message, elapsed_ms, create_time
+        ) values (
+            #{id}, #{conversationId}, #{messageId}, #{model}, #{provider}, #{requestBody},
+            #{responseBody}, #{status}, #{errorMessage}, #{elapsedMs}, sysdate()
+        )
+    </insert>
+
+</mapper>
