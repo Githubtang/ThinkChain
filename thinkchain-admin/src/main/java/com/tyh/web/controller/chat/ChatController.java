@@ -21,14 +21,14 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.Set;
 
 /**
- * Generic AI chat HTTP API.
+ * 通用 AI 对话 HTTP 接口。
  *
  * @Author: GithubTang
- * @Description: AI chat API
+ * @Description: AI 对话接口
  * @Date: 2026/4/29
  * @Version: 1.0
  */
-@Tag(name = "AI Chat")
+@Tag(name = "AI 对话")
 @RestController
 @RequestMapping("/ai/chat")
 public class ChatController {
@@ -48,43 +48,43 @@ public class ChatController {
         this.modelRegistry = modelRegistry;
     }
 
-    @Operation(description = "Unified chat")
+    @Operation(description = "统一对话")
     @PostMapping("/send")
     public AjaxResult send(@RequestBody ChatRequest request) {
         return chatService.chat(request, null);
     }
 
-    @Operation(description = "Unified streaming chat")
+    @Operation(description = "统一流式对话")
     @PostMapping("/stream")
     public SseEmitter stream(@RequestBody ChatRequest request) {
         return chatStreamService.stream(request, null);
     }
 
-    @Operation(description = "List available models")
+    @Operation(description = "查询可用模型")
     @GetMapping("/models")
     public AjaxResult models() {
         return AjaxResult.success(modelRegistry.listModels());
     }
 
-    @Operation(description = "List conversations")
+    @Operation(description = "查询会话列表")
     @GetMapping("/conversations")
     public AjaxResult conversations(@RequestParam(required = false) String userId) {
         return AjaxResult.success(conversationService.listConversations(userId));
     }
 
-    @Operation(description = "List conversation messages")
+    @Operation(description = "查询会话消息列表")
     @GetMapping("/conversations/{conversationId}/messages")
     public AjaxResult messages(@PathVariable String conversationId) {
         return AjaxResult.success(conversationService.listMessages(conversationId));
     }
 
-    @Operation(description = "Delete conversation")
+    @Operation(description = "删除会话")
     @DeleteMapping("/conversations/{conversationId}")
     public AjaxResult deleteConversation(@PathVariable String conversationId) {
         return AjaxResult.success(conversationService.deleteConversation(conversationId));
     }
 
-    @Operation(description = "Text chat shortcut")
+    @Operation(description = "文本对话快捷入口")
     @PostMapping("/text")
     public AjaxResult text(@RequestParam String model, @RequestParam String message) {
         return chatService.chat(model, message, Set.of("text", "chat"));
