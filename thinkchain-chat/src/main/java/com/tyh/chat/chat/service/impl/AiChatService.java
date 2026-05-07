@@ -14,12 +14,14 @@ import com.tyh.chat.log.domain.ModelCallLog;
 import com.tyh.chat.log.service.ModelCallLogService;
 import com.tyh.chat.model.ModelEntry;
 import com.tyh.chat.model.ModelRegistry;
+import com.tyh.chat.rag.retrieval.RagContextService;
 import com.tyh.chat.vendor.VendorChatAdapter;
 import com.tyh.chat.vendor.VendorChatAdapterRegistry;
 import com.tyh.chat.vendor.VendorChatResult;
 import com.tyh.common.core.domain.AjaxResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -45,17 +47,20 @@ public class AiChatService implements ChatService {
     private final VendorChatAdapterRegistry vendorChatAdapterRegistry;
     private final ConversationService conversationService;
     private final ModelCallLogService modelCallLogService;
+    private final ObjectProvider<RagContextService> ragContextServiceProvider;
 
     public AiChatService(ModelRegistry modelRegistry,
                          CapabilityValidator capabilityValidator,
                          VendorChatAdapterRegistry vendorChatAdapterRegistry,
                          ConversationService conversationService,
-                         ModelCallLogService modelCallLogService) {
+                         ModelCallLogService modelCallLogService,
+                         ObjectProvider<RagContextService> ragContextServiceProvider) {
         this.modelRegistry = modelRegistry;
         this.capabilityValidator = capabilityValidator;
         this.vendorChatAdapterRegistry = vendorChatAdapterRegistry;
         this.conversationService = conversationService;
         this.modelCallLogService = modelCallLogService;
+        this.ragContextServiceProvider = ragContextServiceProvider;
     }
 
     @Override
@@ -83,7 +88,8 @@ public class AiChatService implements ChatService {
             persistUserMessagesQuietly(request, conversation);
 
             VendorChatAdapter adapter = vendorChatAdapterRegistry.getRequired(model.getProvider());
-            VendorChatResult result = adapter.invoke(model, request);
+            ChatRequest modelRequest = augmentWithRagQuietly(request);
+            VendorChatResult result = adapter.invoke(model, modelRequest);
             long elapsedMs = System.currentTimeMillis() - start;
             assistantMessage = persistAssistantMessageQuietly(request, model, result);
 
@@ -130,6 +136,16 @@ public class AiChatService implements ChatService {
         } catch (Exception e) {
             log.warn("Failed to persist conversation; continuing chat call: {}", e.getMessage());
             return null;
+        }
+    }
+
+    private ChatRequest augmentWithRagQuietly(ChatRequest request) {
+        try {
+            RagContextService service = ragContextServiceProvider.getIfAvailable();
+            return service != null ? service.augment(request) : request;
+        } catch (Exception e) {
+            log.warn("Failed to augment chat request with RAG context; continuing without RAG: {}", e.getMessage());
+            return request;
         }
     }
 

@@ -13,4 +13,7 @@ public interface RagEmbeddingStore {
     List<RagEmbeddingMatch> search(String knowledgeBaseId, float[] queryEmbedding, int topK);
 
     List<RagEmbeddingMatch> searchByScope(String scopeType, String scopeId, float[] queryEmbedding, int topK);
+
+    List<RagEmbeddingMatch> searchByScope(String scopeType, String scopeId, List<String> documentIds,
+                                          float[] queryEmbedding, int topK);
 }

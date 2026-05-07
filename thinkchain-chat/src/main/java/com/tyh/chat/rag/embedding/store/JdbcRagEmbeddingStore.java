@@ -5,6 +5,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Repository
@@ -71,17 +73,42 @@ public class JdbcRagEmbeddingStore implements RagEmbeddingStore {
 
     @Override
     public List<RagEmbeddingMatch> searchByScope(String scopeType, String scopeId, float[] queryEmbedding, int topK) {
-        String sql = """
+        return searchByScope(scopeType, scopeId, Collections.emptyList(), queryEmbedding, topK);
+    }
+
+    @Override
+    public List<RagEmbeddingMatch> searchByScope(String scopeType, String scopeId, List<String> documentIds,
+                                                 float[] queryEmbedding, int topK) {
+        StringBuilder sql = new StringBuilder("""
                 select id, scope_type, scope_id, knowledge_base_id, conversation_id, document_id, chunk_id, content,
                        1 - (embedding <=> cast(? as vector)) as score
                 from rag_embedding
                 where scope_type = ?
                   and scope_id = ?
+                """);
+        List<Object> args = new ArrayList<>();
+        String vector = toVectorLiteral(queryEmbedding);
+        args.add(vector);
+        args.add(scopeType);
+        args.add(scopeId);
+        if (documentIds != null && !documentIds.isEmpty()) {
+            sql.append(" and document_id in (");
+            for (int i = 0; i < documentIds.size(); i++) {
+                if (i > 0) {
+                    sql.append(", ");
+                }
+                sql.append("?");
+                args.add(documentIds.get(i));
+            }
+            sql.append(")\n");
+        }
+        sql.append("""
                 order by embedding <=> cast(? as vector)
                 limit ?
-                """;
-        String vector = toVectorLiteral(queryEmbedding);
-        return jdbcTemplate.query(sql, (rs, rowNum) -> {
+                """);
+        args.add(vector);
+        args.add(topK);
+        return jdbcTemplate.query(sql.toString(), (rs, rowNum) -> {
             RagEmbeddingMatch match = new RagEmbeddingMatch();
             match.setId(rs.getString("id"));
             match.setScopeType(rs.getString("scope_type"));
@@ -93,7 +120,7 @@ public class JdbcRagEmbeddingStore implements RagEmbeddingStore {
             match.setContent(rs.getString("content"));
             match.setScore(rs.getDouble("score"));
             return match;
-        }, vector, scopeType, scopeId, vector, topK);
+        }, args.toArray());
     }
 
     private static String firstNonBlank(String a, String b) {
