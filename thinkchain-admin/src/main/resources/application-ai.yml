@@ -45,6 +45,13 @@ langchain4j:
           - chat
 
 thinkchain:
+  rag:
+    embedding:
+      provider: dashscope
+      apiKey: ${DASHSCOPE_API_KEY:}
+      baseUrl: "https://dashscope.aliyuncs.com"
+      modelName: "text-embedding-v4"
+      dimensions: 1536
   vector:
     datasource:
       enabled: true

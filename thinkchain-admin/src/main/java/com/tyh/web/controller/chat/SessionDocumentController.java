@@ -2,6 +2,7 @@ package com.tyh.web.controller.chat;
 
 import com.tyh.chat.rag.chunk.domain.KnowledgeChunk;
 import com.tyh.chat.rag.chunk.service.KnowledgeChunkService;
+import com.tyh.chat.rag.embedding.service.RagEmbeddingService;
 import com.tyh.chat.rag.embedding.store.RagEmbeddingStore;
 import com.tyh.chat.rag.session.domain.SessionDocument;
 import com.tyh.chat.rag.session.service.SessionDocumentParseService;
@@ -29,17 +30,20 @@ public class SessionDocumentController {
 
     private final SessionDocumentService documentService;
     private final SessionDocumentParseService parseService;
+    private final RagEmbeddingService embeddingService;
     private final KnowledgeChunkService chunkService;
     private final ObjectProvider<RagEmbeddingStore> embeddingStoreProvider;
     private final ServerConfig serverConfig;
 
     public SessionDocumentController(SessionDocumentService documentService,
                                      SessionDocumentParseService parseService,
+                                     RagEmbeddingService embeddingService,
                                      KnowledgeChunkService chunkService,
                                      ObjectProvider<RagEmbeddingStore> embeddingStoreProvider,
                                      ServerConfig serverConfig) {
         this.documentService = documentService;
         this.parseService = parseService;
+        this.embeddingService = embeddingService;
         this.chunkService = chunkService;
         this.embeddingStoreProvider = embeddingStoreProvider;
         this.serverConfig = serverConfig;
@@ -93,6 +97,12 @@ public class SessionDocumentController {
         query.setDocumentId(documentId);
         query.setScopeType("SESSION");
         return AjaxResult.success(chunkService.list(query));
+    }
+
+    @Operation(description = "Embed session document chunks")
+    @PostMapping("/session-documents/{documentId}/embedding")
+    public AjaxResult embedding(@PathVariable String documentId) {
+        return AjaxResult.success(embeddingService.embedDocument(documentId));
     }
 
     @Operation(description = "Delete session document")
