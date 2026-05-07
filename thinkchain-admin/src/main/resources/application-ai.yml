@@ -43,3 +43,12 @@ langchain4j:
         capabilities:
           - text
           - chat
+
+thinkchain:
+  vector:
+    datasource:
+      enabled: true
+      driverClassName: org.postgresql.Driver
+      url: jdbc:postgresql://localhost:5432/thinkchain
+      username: postgres
+      password: ${POSTGRES_PASSWORD:}

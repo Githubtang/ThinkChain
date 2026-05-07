@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tyh.chat.rag.document.mapper.KnowledgeDocumentMapper">
+
+    <resultMap type="KnowledgeDocument" id="KnowledgeDocumentResult">
+        <id     property="id"              column="id"                />
+        <result property="knowledgeBaseId" column="knowledge_base_id" />
+        <result property="userId"          column="user_id"           />
+        <result property="fileName"        column="file_name"         />
+        <result property="fileType"        column="file_type"         />
+        <result property="mimeType"        column="mime_type"         />
+        <result property="filePath"        column="file_path"         />
+        <result property="fileSize"        column="file_size"         />
+        <result property="title"           column="title"             />
+        <result property="status"          column="status"            />
+        <result property="chunkCount"      column="chunk_count"       />
+        <result property="errorMessage"    column="error_message"     />
+        <result property="createTime"      column="create_time"       />
+        <result property="updateTime"      column="update_time"       />
+    </resultMap>
+
+    <sql id="selectKnowledgeDocumentVo">
+        select id, knowledge_base_id, user_id, file_name, file_type, mime_type, file_path,
+               file_size, title, status, chunk_count, error_message, create_time, update_time
+        from knowledge_document
+    </sql>
+
+    <select id="selectKnowledgeDocumentById" parameterType="String" resultMap="KnowledgeDocumentResult">
+        <include refid="selectKnowledgeDocumentVo"/>
+        where id = #{id}
+    </select>
+
+    <select id="selectKnowledgeDocumentList" parameterType="KnowledgeDocument" resultMap="KnowledgeDocumentResult">
+        <include refid="selectKnowledgeDocumentVo"/>
+        <where>
+            <if test="knowledgeBaseId != null and knowledgeBaseId != ''">and knowledge_base_id = #{knowledgeBaseId}</if>
+            <if test="userId != null and userId != ''">and user_id = #{userId}</if>
+            <if test="fileName != null and fileName != ''">and file_name like concat('%', #{fileName}, '%')</if>
+            <if test="status != null and status != ''">and status = #{status}</if>
+        </where>
+        order by update_time desc, create_time desc
+    </select>
+
+    <insert id="insertKnowledgeDocument" parameterType="KnowledgeDocument">
+        insert into knowledge_document (
+            id, knowledge_base_id, user_id, file_name, file_type, mime_type, file_path,
+            file_size, title, status, chunk_count, error_message, create_time, update_time
+        ) values (
+            #{id}, #{knowledgeBaseId}, #{userId}, #{fileName}, #{fileType}, #{mimeType}, #{filePath},
+            #{fileSize}, #{title}, #{status}, #{chunkCount}, #{errorMessage}, sysdate(), sysdate()
+        )
+    </insert>
+
+    <update id="updateKnowledgeDocument" parameterType="KnowledgeDocument">
+        update knowledge_document
+        <set>
+            <if test="knowledgeBaseId != null and knowledgeBaseId != ''">knowledge_base_id = #{knowledgeBaseId},</if>
+            <if test="userId != null">user_id = #{userId},</if>
+            <if test="fileName != null and fileName != ''">file_name = #{fileName},</if>
+            <if test="fileType != null">file_type = #{fileType},</if>
+            <if test="mimeType != null">mime_type = #{mimeType},</if>
+            <if test="filePath != null">file_path = #{filePath},</if>
+            <if test="fileSize != null">file_size = #{fileSize},</if>
+            <if test="title != null">title = #{title},</if>
+            <if test="status != null and status != ''">status = #{status},</if>
+            <if test="chunkCount != null">chunk_count = #{chunkCount},</if>
+            <if test="errorMessage != null">error_message = #{errorMessage},</if>
+            update_time = sysdate()
+        </set>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteKnowledgeDocumentById" parameterType="String">
+        delete from knowledge_document where id = #{id}
+    </delete>
+
+</mapper>

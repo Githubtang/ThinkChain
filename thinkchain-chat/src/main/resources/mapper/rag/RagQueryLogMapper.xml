@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tyh.chat.rag.log.mapper.RagQueryLogMapper">
+
+    <resultMap type="RagQueryLog" id="RagQueryLogResult">
+        <id     property="id"              column="id"                />
+        <result property="conversationId"  column="conversation_id"   />
+        <result property="knowledgeBaseId" column="knowledge_base_id" />
+        <result property="userId"          column="user_id"           />
+        <result property="model"           column="model"             />
+        <result property="embeddingModel"  column="embedding_model"   />
+        <result property="question"        column="question"          />
+        <result property="rewrittenQuery"  column="rewritten_query"   />
+        <result property="answer"          column="answer"            />
+        <result property="topK"            column="top_k"             />
+        <result property="minScore"        column="min_score"         />
+        <result property="hitCount"        column="hit_count"         />
+        <result property="hitChunks"       column="hit_chunks"        />
+        <result property="elapsedMs"       column="elapsed_ms"        />
+        <result property="status"          column="status"            />
+        <result property="errorMessage"    column="error_message"     />
+        <result property="createTime"      column="create_time"       />
+    </resultMap>
+
+    <select id="selectRagQueryLogList" parameterType="RagQueryLog" resultMap="RagQueryLogResult">
+        select id, conversation_id, knowledge_base_id, user_id, model, embedding_model,
+               question, rewritten_query, answer, top_k, min_score, hit_count, hit_chunks,
+               elapsed_ms, status, error_message, create_time
+        from rag_query_log
+        <where>
+            <if test="conversationId != null and conversationId != ''">and conversation_id = #{conversationId}</if>
+            <if test="knowledgeBaseId != null and knowledgeBaseId != ''">and knowledge_base_id = #{knowledgeBaseId}</if>
+            <if test="userId != null and userId != ''">and user_id = #{userId}</if>
+            <if test="status != null and status != ''">and status = #{status}</if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <insert id="insertRagQueryLog" parameterType="RagQueryLog">
+        insert into rag_query_log (
+            id, conversation_id, knowledge_base_id, user_id, model, embedding_model,
+            question, rewritten_query, answer, top_k, min_score, hit_count, hit_chunks,
+            elapsed_ms, status, error_message, create_time
+        ) values (
+            #{id}, #{conversationId}, #{knowledgeBaseId}, #{userId}, #{model}, #{embeddingModel},
+            #{question}, #{rewrittenQuery}, #{answer}, #{topK}, #{minScore}, #{hitCount}, #{hitChunks},
+            #{elapsedMs}, #{status}, #{errorMessage}, sysdate()
+        )
+    </insert>
+
+</mapper>

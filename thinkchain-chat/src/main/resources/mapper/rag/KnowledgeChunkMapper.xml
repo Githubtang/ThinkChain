@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tyh.chat.rag.chunk.mapper.KnowledgeChunkMapper">
+
+    <resultMap type="KnowledgeChunk" id="KnowledgeChunkResult">
+        <id     property="id"              column="id"                />
+        <result property="knowledgeBaseId" column="knowledge_base_id" />
+        <result property="documentId"      column="document_id"       />
+        <result property="chunkIndex"      column="chunk_index"       />
+        <result property="content"         column="content"           />
+        <result property="contentHash"     column="content_hash"      />
+        <result property="tokenCount"      column="token_count"       />
+        <result property="charCount"       column="char_count"        />
+        <result property="pageNumber"      column="page_number"       />
+        <result property="sectionTitle"    column="section_title"     />
+        <result property="embeddingStatus" column="embedding_status"  />
+        <result property="vectorId"        column="vector_id"         />
+        <result property="createTime"      column="create_time"       />
+        <result property="updateTime"      column="update_time"       />
+    </resultMap>
+
+    <sql id="selectKnowledgeChunkVo">
+        select id, knowledge_base_id, document_id, chunk_index, content, content_hash, token_count,
+               char_count, page_number, section_title, embedding_status, vector_id, create_time, update_time
+        from knowledge_chunk
+    </sql>
+
+    <select id="selectKnowledgeChunkById" parameterType="String" resultMap="KnowledgeChunkResult">
+        <include refid="selectKnowledgeChunkVo"/>
+        where id = #{id}
+    </select>
+
+    <select id="selectKnowledgeChunkList" parameterType="KnowledgeChunk" resultMap="KnowledgeChunkResult">
+        <include refid="selectKnowledgeChunkVo"/>
+        <where>
+            <if test="knowledgeBaseId != null and knowledgeBaseId != ''">and knowledge_base_id = #{knowledgeBaseId}</if>
+            <if test="documentId != null and documentId != ''">and document_id = #{documentId}</if>
+            <if test="embeddingStatus != null and embeddingStatus != ''">and embedding_status = #{embeddingStatus}</if>
+        </where>
+        order by document_id asc, chunk_index asc
+    </select>
+
+    <insert id="insertKnowledgeChunk" parameterType="KnowledgeChunk">
+        insert into knowledge_chunk (
+            id, knowledge_base_id, document_id, chunk_index, content, content_hash, token_count,
+            char_count, page_number, section_title, embedding_status, vector_id, create_time, update_time
+        ) values (
+            #{id}, #{knowledgeBaseId}, #{documentId}, #{chunkIndex}, #{content}, #{contentHash}, #{tokenCount},
+            #{charCount}, #{pageNumber}, #{sectionTitle}, #{embeddingStatus}, #{vectorId}, sysdate(), sysdate()
+        )
+    </insert>
+
+    <update id="updateKnowledgeChunk" parameterType="KnowledgeChunk">
+        update knowledge_chunk
+        <set>
+            <if test="knowledgeBaseId != null and knowledgeBaseId != ''">knowledge_base_id = #{knowledgeBaseId},</if>
+            <if test="documentId != null and documentId != ''">document_id = #{documentId},</if>
+            <if test="chunkIndex != null">chunk_index = #{chunkIndex},</if>
+            <if test="content != null">content = #{content},</if>
+            <if test="contentHash != null">content_hash = #{contentHash},</if>
+            <if test="tokenCount != null">token_count = #{tokenCount},</if>
+            <if test="charCount != null">char_count = #{charCount},</if>
+            <if test="pageNumber != null">page_number = #{pageNumber},</if>
+            <if test="sectionTitle != null">section_title = #{sectionTitle},</if>
+            <if test="embeddingStatus != null and embeddingStatus != ''">embedding_status = #{embeddingStatus},</if>
+            <if test="vectorId != null">vector_id = #{vectorId},</if>
+            update_time = sysdate()
+        </set>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteKnowledgeChunksByDocumentId" parameterType="String">
+        delete from knowledge_chunk where document_id = #{documentId}
+    </delete>
+
+</mapper>
