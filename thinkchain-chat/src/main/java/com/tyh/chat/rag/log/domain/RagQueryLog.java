@@ -11,6 +11,9 @@ public class RagQueryLog extends BaseEntity {
     private String id;
     private String conversationId;
     private String knowledgeBaseId;
+    private String knowledgeBaseIds;
+    private String sessionDocumentIds;
+    private String ragMode;
     private String userId;
     private String model;
     private String embeddingModel;
@@ -47,6 +50,30 @@ public class RagQueryLog extends BaseEntity {
 
     public void setKnowledgeBaseId(String knowledgeBaseId) {
         this.knowledgeBaseId = knowledgeBaseId;
+    }
+
+    public String getKnowledgeBaseIds() {
+        return knowledgeBaseIds;
+    }
+
+    public void setKnowledgeBaseIds(String knowledgeBaseIds) {
+        this.knowledgeBaseIds = knowledgeBaseIds;
+    }
+
+    public String getSessionDocumentIds() {
+        return sessionDocumentIds;
+    }
+
+    public void setSessionDocumentIds(String sessionDocumentIds) {
+        this.sessionDocumentIds = sessionDocumentIds;
+    }
+
+    public String getRagMode() {
+        return ragMode;
+    }
+
+    public void setRagMode(String ragMode) {
+        this.ragMode = ragMode;
     }
 
     public String getUserId() {

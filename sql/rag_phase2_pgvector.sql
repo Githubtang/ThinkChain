@@ -2,9 +2,14 @@
 
 create extension if not exists vector;
 
-create table if not exists rag_embedding (
+drop table if exists rag_embedding;
+
+create table rag_embedding (
     id varchar(64) not null,
-    knowledge_base_id varchar(64) not null,
+    scope_type varchar(20) not null,
+    scope_id varchar(64) not null,
+    knowledge_base_id varchar(64) null,
+    conversation_id varchar(64) null,
     document_id varchar(64) not null,
     chunk_id varchar(64) not null,
     embedding_model varchar(100) not null,
@@ -19,7 +24,13 @@ comment on table rag_embedding is 'RAG向量存储表';
 
 comment on column rag_embedding.id is '向量记录ID';
 
+comment on column rag_embedding.scope_type is 'RAG作用域类型：KB知识库、SESSION会话临时文件';
+
+comment on column rag_embedding.scope_id is 'RAG作用域ID：知识库ID或会话ID';
+
 comment on column rag_embedding.knowledge_base_id is '知识库ID';
+
+comment on column rag_embedding.conversation_id is '会话ID，临时文件向量使用';
 
 comment on column rag_embedding.document_id is '文档ID';
 
@@ -35,15 +46,19 @@ comment on column rag_embedding.metadata is '向量元数据JSON';
 
 comment on column rag_embedding.create_time is '创建时间';
 
-create index if not exists idx_rag_embedding_kb_id on rag_embedding (knowledge_base_id);
+create index idx_rag_embedding_scope on rag_embedding (scope_type, scope_id);
 
-create index if not exists idx_rag_embedding_document_id on rag_embedding (document_id);
+create index idx_rag_embedding_kb_id on rag_embedding (knowledge_base_id);
 
-create index if not exists idx_rag_embedding_chunk_id on rag_embedding (chunk_id);
+create index idx_rag_embedding_conversation_id on rag_embedding (conversation_id);
 
-create index if not exists idx_rag_embedding_model on rag_embedding (embedding_model);
+create index idx_rag_embedding_document_id on rag_embedding (document_id);
 
-create index if not exists idx_rag_embedding_create_time on rag_embedding (create_time);
+create index idx_rag_embedding_chunk_id on rag_embedding (chunk_id);
 
-create index if not exists idx_rag_embedding_vector_cosine on rag_embedding using ivfflat (embedding vector_cosine_ops)
+create index idx_rag_embedding_model on rag_embedding (embedding_model);
+
+create index idx_rag_embedding_create_time on rag_embedding (create_time);
+
+create index idx_rag_embedding_vector_cosine on rag_embedding using ivfflat (embedding vector_cosine_ops)
 with (lists = 100);

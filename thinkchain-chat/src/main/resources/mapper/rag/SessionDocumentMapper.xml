@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.tyh.chat.rag.session.mapper.SessionDocumentMapper">
+
+    <resultMap type="SessionDocument" id="SessionDocumentResult">
+        <id     property="id"               column="id"                 />
+        <result property="conversationId"   column="conversation_id"    />
+        <result property="userId"           column="user_id"            />
+        <result property="fileName"         column="file_name"          />
+        <result property="originalFileName" column="original_file_name" />
+        <result property="fileUrl"          column="file_url"           />
+        <result property="filePath"         column="file_path"          />
+        <result property="mimeType"         column="mime_type"          />
+        <result property="fileSize"         column="file_size"          />
+        <result property="parseStatus"      column="parse_status"       />
+        <result property="chunkCount"       column="chunk_count"        />
+        <result property="tokenCount"       column="token_count"        />
+        <result property="errorMessage"     column="error_message"      />
+        <result property="expireTime"       column="expire_time"        />
+        <result property="createTime"       column="create_time"        />
+        <result property="updateTime"       column="update_time"        />
+    </resultMap>
+
+    <sql id="selectSessionDocumentVo">
+        select id, conversation_id, user_id, file_name, original_file_name, file_url, file_path,
+               mime_type, file_size, parse_status, chunk_count, token_count, error_message,
+               expire_time, create_time, update_time
+        from rag_session_document
+    </sql>
+
+    <select id="selectSessionDocumentById" parameterType="String" resultMap="SessionDocumentResult">
+        <include refid="selectSessionDocumentVo"/>
+        where id = #{id}
+    </select>
+
+    <select id="selectSessionDocumentList" parameterType="SessionDocument" resultMap="SessionDocumentResult">
+        <include refid="selectSessionDocumentVo"/>
+        <where>
+            <if test="conversationId != null and conversationId != ''">and conversation_id = #{conversationId}</if>
+            <if test="userId != null and userId != ''">and user_id = #{userId}</if>
+            <if test="fileName != null and fileName != ''">and file_name like concat('%', #{fileName}, '%')</if>
+            <if test="parseStatus != null and parseStatus != ''">and parse_status = #{parseStatus}</if>
+        </where>
+        order by update_time desc, create_time desc
+    </select>
+
+    <insert id="insertSessionDocument" parameterType="SessionDocument">
+        insert into rag_session_document (
+            id, conversation_id, user_id, file_name, original_file_name, file_url, file_path,
+            mime_type, file_size, parse_status, chunk_count, token_count, error_message,
+            expire_time, create_time, update_time
+        ) values (
+            #{id}, #{conversationId}, #{userId}, #{fileName}, #{originalFileName}, #{fileUrl}, #{filePath},
+            #{mimeType}, #{fileSize}, #{parseStatus}, #{chunkCount}, #{tokenCount}, #{errorMessage},
+            #{expireTime}, sysdate(), sysdate()
+        )
+    </insert>
+
+    <update id="updateSessionDocument" parameterType="SessionDocument">
+        update rag_session_document
+        <set>
+            <if test="conversationId != null and conversationId != ''">conversation_id = #{conversationId},</if>
+            <if test="userId != null">user_id = #{userId},</if>
+            <if test="fileName != null and fileName != ''">file_name = #{fileName},</if>
+            <if test="originalFileName != null">original_file_name = #{originalFileName},</if>
+            <if test="fileUrl != null">file_url = #{fileUrl},</if>
+            <if test="filePath != null">file_path = #{filePath},</if>
+            <if test="mimeType != null">mime_type = #{mimeType},</if>
+            <if test="fileSize != null">file_size = #{fileSize},</if>
+            <if test="parseStatus != null and parseStatus != ''">parse_status = #{parseStatus},</if>
+            <if test="chunkCount != null">chunk_count = #{chunkCount},</if>
+            <if test="tokenCount != null">token_count = #{tokenCount},</if>
+            <if test="errorMessage != null">error_message = #{errorMessage},</if>
+            <if test="expireTime != null">expire_time = #{expireTime},</if>
+            update_time = sysdate()
+        </set>
+        where id = #{id}
+    </update>
+
+    <delete id="deleteSessionDocumentById" parameterType="String">
+        delete from rag_session_document where id = #{id}
+    </delete>
+
+</mapper>

@@ -9,4 +9,6 @@ public interface RagEmbeddingStore {
     int deleteByChunkId(String chunkId);
 
     List<RagEmbeddingMatch> search(String knowledgeBaseId, float[] queryEmbedding, int topK);
+
+    List<RagEmbeddingMatch> searchByScope(String scopeType, String scopeId, float[] queryEmbedding, int topK);
 }

@@ -32,6 +32,12 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
         if (chunk.getId() == null || chunk.getId().isBlank()) {
             chunk.setId(UUID.randomUUID().toString());
         }
+        if (chunk.getScopeType() == null || chunk.getScopeType().isBlank()) {
+            chunk.setScopeType(chunk.getConversationId() != null && !chunk.getConversationId().isBlank() ? "SESSION" : "KB");
+        }
+        if (chunk.getScopeId() == null || chunk.getScopeId().isBlank()) {
+            chunk.setScopeId("SESSION".equalsIgnoreCase(chunk.getScopeType()) ? chunk.getConversationId() : chunk.getKnowledgeBaseId());
+        }
         if (chunk.getEmbeddingStatus() == null || chunk.getEmbeddingStatus().isBlank()) {
             chunk.setEmbeddingStatus("PENDING");
         }

@@ -6,7 +6,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <resultMap type="KnowledgeChunk" id="KnowledgeChunkResult">
         <id     property="id"              column="id"                />
+        <result property="scopeType"       column="scope_type"        />
+        <result property="scopeId"         column="scope_id"          />
         <result property="knowledgeBaseId" column="knowledge_base_id" />
+        <result property="conversationId"  column="conversation_id"   />
         <result property="documentId"      column="document_id"       />
         <result property="chunkIndex"      column="chunk_index"       />
         <result property="content"         column="content"           />
@@ -22,9 +25,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <sql id="selectKnowledgeChunkVo">
-        select id, knowledge_base_id, document_id, chunk_index, content, content_hash, token_count,
-               char_count, page_number, section_title, embedding_status, vector_id, create_time, update_time
-        from knowledge_chunk
+        select id, scope_type, scope_id, knowledge_base_id, conversation_id, document_id, chunk_index,
+               content, content_hash, token_count, char_count, page_number, section_title,
+               embedding_status, vector_id, create_time, update_time
+        from rag_chunk
     </sql>
 
     <select id="selectKnowledgeChunkById" parameterType="String" resultMap="KnowledgeChunkResult">
@@ -35,7 +39,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <select id="selectKnowledgeChunkList" parameterType="KnowledgeChunk" resultMap="KnowledgeChunkResult">
         <include refid="selectKnowledgeChunkVo"/>
         <where>
+            <if test="scopeType != null and scopeType != ''">and scope_type = #{scopeType}</if>
+            <if test="scopeId != null and scopeId != ''">and scope_id = #{scopeId}</if>
             <if test="knowledgeBaseId != null and knowledgeBaseId != ''">and knowledge_base_id = #{knowledgeBaseId}</if>
+            <if test="conversationId != null and conversationId != ''">and conversation_id = #{conversationId}</if>
             <if test="documentId != null and documentId != ''">and document_id = #{documentId}</if>
             <if test="embeddingStatus != null and embeddingStatus != ''">and embedding_status = #{embeddingStatus}</if>
         </where>
@@ -43,19 +50,24 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </select>
 
     <insert id="insertKnowledgeChunk" parameterType="KnowledgeChunk">
-        insert into knowledge_chunk (
-            id, knowledge_base_id, document_id, chunk_index, content, content_hash, token_count,
-            char_count, page_number, section_title, embedding_status, vector_id, create_time, update_time
+        insert into rag_chunk (
+            id, scope_type, scope_id, knowledge_base_id, conversation_id, document_id, chunk_index,
+            content, content_hash, token_count, char_count, page_number, section_title,
+            embedding_status, vector_id, create_time, update_time
         ) values (
-            #{id}, #{knowledgeBaseId}, #{documentId}, #{chunkIndex}, #{content}, #{contentHash}, #{tokenCount},
-            #{charCount}, #{pageNumber}, #{sectionTitle}, #{embeddingStatus}, #{vectorId}, sysdate(), sysdate()
+            #{id}, #{scopeType}, #{scopeId}, #{knowledgeBaseId}, #{conversationId}, #{documentId}, #{chunkIndex},
+            #{content}, #{contentHash}, #{tokenCount}, #{charCount}, #{pageNumber}, #{sectionTitle},
+            #{embeddingStatus}, #{vectorId}, sysdate(), sysdate()
         )
     </insert>
 
     <update id="updateKnowledgeChunk" parameterType="KnowledgeChunk">
-        update knowledge_chunk
+        update rag_chunk
         <set>
+            <if test="scopeType != null and scopeType != ''">scope_type = #{scopeType},</if>
+            <if test="scopeId != null and scopeId != ''">scope_id = #{scopeId},</if>
             <if test="knowledgeBaseId != null and knowledgeBaseId != ''">knowledge_base_id = #{knowledgeBaseId},</if>
+            <if test="conversationId != null">conversation_id = #{conversationId},</if>
             <if test="documentId != null and documentId != ''">document_id = #{documentId},</if>
             <if test="chunkIndex != null">chunk_index = #{chunkIndex},</if>
             <if test="content != null">content = #{content},</if>
@@ -72,7 +84,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </update>
 
     <delete id="deleteKnowledgeChunksByDocumentId" parameterType="String">
-        delete from knowledge_chunk where document_id = #{documentId}
+        delete from rag_chunk where document_id = #{documentId}
     </delete>
 
 </mapper>

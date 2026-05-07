@@ -8,6 +8,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <id     property="id"              column="id"                />
         <result property="conversationId"  column="conversation_id"   />
         <result property="knowledgeBaseId" column="knowledge_base_id" />
+        <result property="knowledgeBaseIds" column="knowledge_base_ids" />
+        <result property="sessionDocumentIds" column="session_document_ids" />
+        <result property="ragMode"         column="rag_mode"          />
         <result property="userId"          column="user_id"           />
         <result property="model"           column="model"             />
         <result property="embeddingModel"  column="embedding_model"   />
@@ -25,13 +28,14 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     </resultMap>
 
     <select id="selectRagQueryLogList" parameterType="RagQueryLog" resultMap="RagQueryLogResult">
-        select id, conversation_id, knowledge_base_id, user_id, model, embedding_model,
-               question, rewritten_query, answer, top_k, min_score, hit_count, hit_chunks,
-               elapsed_ms, status, error_message, create_time
+        select id, conversation_id, knowledge_base_id, knowledge_base_ids, session_document_ids,
+               rag_mode, user_id, model, embedding_model, question, rewritten_query, answer,
+               top_k, min_score, hit_count, hit_chunks, elapsed_ms, status, error_message, create_time
         from rag_query_log
         <where>
             <if test="conversationId != null and conversationId != ''">and conversation_id = #{conversationId}</if>
             <if test="knowledgeBaseId != null and knowledgeBaseId != ''">and knowledge_base_id = #{knowledgeBaseId}</if>
+            <if test="ragMode != null and ragMode != ''">and rag_mode = #{ragMode}</if>
             <if test="userId != null and userId != ''">and user_id = #{userId}</if>
             <if test="status != null and status != ''">and status = #{status}</if>
         </where>
@@ -40,13 +44,13 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <insert id="insertRagQueryLog" parameterType="RagQueryLog">
         insert into rag_query_log (
-            id, conversation_id, knowledge_base_id, user_id, model, embedding_model,
-            question, rewritten_query, answer, top_k, min_score, hit_count, hit_chunks,
-            elapsed_ms, status, error_message, create_time
+            id, conversation_id, knowledge_base_id, knowledge_base_ids, session_document_ids,
+            rag_mode, user_id, model, embedding_model, question, rewritten_query, answer,
+            top_k, min_score, hit_count, hit_chunks, elapsed_ms, status, error_message, create_time
         ) values (
-            #{id}, #{conversationId}, #{knowledgeBaseId}, #{userId}, #{model}, #{embeddingModel},
-            #{question}, #{rewrittenQuery}, #{answer}, #{topK}, #{minScore}, #{hitCount}, #{hitChunks},
-            #{elapsedMs}, #{status}, #{errorMessage}, sysdate()
+            #{id}, #{conversationId}, #{knowledgeBaseId}, #{knowledgeBaseIds}, #{sessionDocumentIds},
+            #{ragMode}, #{userId}, #{model}, #{embeddingModel}, #{question}, #{rewrittenQuery}, #{answer},
+            #{topK}, #{minScore}, #{hitCount}, #{hitChunks}, #{elapsedMs}, #{status}, #{errorMessage}, sysdate()
         )
     </insert>
 

@@ -33,6 +33,21 @@ public class ChatRequest {
     /** 是否启用流式响应。 */
     private Boolean stream;
 
+    /** 是否启用 RAG；为空时由 ragMode 和上下文选择自动判断。 */
+    private Boolean ragEnabled;
+
+    /** 本次对话显式选择的知识库 ID 列表。 */
+    private List<String> knowledgeBaseIds;
+
+    /** 当前会话上传并可参与检索的临时文档 ID 列表。 */
+    private List<String> sessionDocumentIds;
+
+    /** RAG 召回数量。 */
+    private Integer ragTopK;
+
+    /** RAG 模式：AUTO / SESSION_ONLY / KB_ONLY / SESSION_AND_KB / NONE。 */
+    private String ragMode;
+
     public String getConversationId() {
         return conversationId;
     }
@@ -87,5 +102,45 @@ public class ChatRequest {
 
     public void setStream(Boolean stream) {
         this.stream = stream;
+    }
+
+    public Boolean getRagEnabled() {
+        return ragEnabled;
+    }
+
+    public void setRagEnabled(Boolean ragEnabled) {
+        this.ragEnabled = ragEnabled;
+    }
+
+    public List<String> getKnowledgeBaseIds() {
+        return knowledgeBaseIds;
+    }
+
+    public void setKnowledgeBaseIds(List<String> knowledgeBaseIds) {
+        this.knowledgeBaseIds = knowledgeBaseIds;
+    }
+
+    public List<String> getSessionDocumentIds() {
+        return sessionDocumentIds;
+    }
+
+    public void setSessionDocumentIds(List<String> sessionDocumentIds) {
+        this.sessionDocumentIds = sessionDocumentIds;
+    }
+
+    public Integer getRagTopK() {
+        return ragTopK;
+    }
+
+    public void setRagTopK(Integer ragTopK) {
+        this.ragTopK = ragTopK;
+    }
+
+    public String getRagMode() {
+        return ragMode;
+    }
+
+    public void setRagMode(String ragMode) {
+        this.ragMode = ragMode;
     }
 }
