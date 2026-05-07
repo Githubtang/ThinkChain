@@ -60,6 +60,11 @@ public class JdbcRagEmbeddingStore implements RagEmbeddingStore {
     }
 
     @Override
+    public int deleteByDocumentId(String documentId) {
+        return jdbcTemplate.update("delete from rag_embedding where document_id = ?", documentId);
+    }
+
+    @Override
     public List<RagEmbeddingMatch> search(String knowledgeBaseId, float[] queryEmbedding, int topK) {
         return searchByScope("KB", knowledgeBaseId, queryEmbedding, topK);
     }
