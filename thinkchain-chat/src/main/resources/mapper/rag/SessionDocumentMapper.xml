@@ -72,7 +72,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="parseStatus != null and parseStatus != ''">parse_status = #{parseStatus},</if>
             <if test="chunkCount != null">chunk_count = #{chunkCount},</if>
             <if test="tokenCount != null">token_count = #{tokenCount},</if>
-            <if test="errorMessage != null">error_message = #{errorMessage},</if>
+            error_message = #{errorMessage},
             <if test="expireTime != null">expire_time = #{expireTime},</if>
             update_time = sysdate()
         </set>

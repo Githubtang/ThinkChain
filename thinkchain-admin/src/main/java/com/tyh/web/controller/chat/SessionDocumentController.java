@@ -4,6 +4,7 @@ import com.tyh.chat.rag.chunk.domain.KnowledgeChunk;
 import com.tyh.chat.rag.chunk.service.KnowledgeChunkService;
 import com.tyh.chat.rag.embedding.store.RagEmbeddingStore;
 import com.tyh.chat.rag.session.domain.SessionDocument;
+import com.tyh.chat.rag.session.service.SessionDocumentParseService;
 import com.tyh.chat.rag.session.service.SessionDocumentService;
 import com.tyh.common.config.ThinkChainConfig;
 import com.tyh.common.core.domain.AjaxResult;
@@ -27,15 +28,18 @@ import org.springframework.web.multipart.MultipartFile;
 public class SessionDocumentController {
 
     private final SessionDocumentService documentService;
+    private final SessionDocumentParseService parseService;
     private final KnowledgeChunkService chunkService;
     private final ObjectProvider<RagEmbeddingStore> embeddingStoreProvider;
     private final ServerConfig serverConfig;
 
     public SessionDocumentController(SessionDocumentService documentService,
+                                     SessionDocumentParseService parseService,
                                      KnowledgeChunkService chunkService,
                                      ObjectProvider<RagEmbeddingStore> embeddingStoreProvider,
                                      ServerConfig serverConfig) {
         this.documentService = documentService;
+        this.parseService = parseService;
         this.chunkService = chunkService;
         this.embeddingStoreProvider = embeddingStoreProvider;
         this.serverConfig = serverConfig;
@@ -60,7 +64,7 @@ public class SessionDocumentController {
             document.setParseStatus("PENDING");
             document.setChunkCount(0);
             documentService.create(document);
-            return AjaxResult.success(document);
+            return AjaxResult.success(parseService.parse(document.getId()));
         } catch (Exception e) {
             return AjaxResult.error(e.getMessage());
         }
