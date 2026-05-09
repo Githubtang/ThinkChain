@@ -52,10 +52,26 @@ thinkchain:
       baseUrl: "https://dashscope.aliyuncs.com"
       modelName: "text-embedding-v4"
       dimensions: 1536
-  vector:
-    datasource:
-      enabled: true
-      driverClassName: org.postgresql.Driver
-      url: jdbc:postgresql://localhost:5432/thinkchain
-      username: postgres
-      password: ${POSTGRES_PASSWORD:}
+
+spring:
+  datasource:
+    druid:
+      vector:
+        enabled: true
+        driverClassName: org.postgresql.Driver
+        url: jdbc:postgresql://localhost:5432/thinkchain
+        username: postgres
+        password:
+        initialSize: 2
+        minIdle: 2
+        maxActive: 10
+        maxWait: 60000
+        connectTimeout: 30000
+        socketTimeout: 60000
+        timeBetweenEvictionRunsMillis: 60000
+        minEvictableIdleTimeMillis: 300000
+        maxEvictableIdleTimeMillis: 900000
+        validationQuery: SELECT 1
+        testWhileIdle: true
+        testOnBorrow: false
+        testOnReturn: false

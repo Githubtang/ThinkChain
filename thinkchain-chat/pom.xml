@@ -61,5 +61,11 @@
             <groupId>com.tyh</groupId>
             <artifactId>thinkchain-common</artifactId>
         </dependency>
+
+        <!-- framework框架核心 -->
+        <dependency>
+            <groupId>com.tyh</groupId>
+            <artifactId>thinkchain-framework</artifactId>
+        </dependency>
     </dependencies>
 </project>
