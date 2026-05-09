@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-@Tag(name = "AI Session Document")
+@Tag(name = "AI 会话文档")
 @RestController
 @RequestMapping("/ai/chat")
 public class SessionDocumentController {
@@ -49,7 +49,7 @@ public class SessionDocumentController {
         this.serverConfig = serverConfig;
     }
 
-    @Operation(description = "Upload session document")
+    @Operation(summary = "上传会话文档", description = "上传会话文档")
     @PostMapping("/conversations/{conversationId}/documents")
     public AjaxResult upload(@PathVariable String conversationId,
                              @RequestParam(required = false) String userId,
@@ -74,7 +74,7 @@ public class SessionDocumentController {
         }
     }
 
-    @Operation(description = "List session documents")
+    @Operation(summary = "查询会话文档列表", description = "查询会话文档列表")
     @GetMapping("/conversations/{conversationId}/documents")
     public AjaxResult list(@PathVariable String conversationId,
                            @RequestParam(required = false) String userId) {
@@ -84,13 +84,13 @@ public class SessionDocumentController {
         return AjaxResult.success(documentService.list(query));
     }
 
-    @Operation(description = "Get session document")
+    @Operation(summary = "查询会话文档详情", description = "查询会话文档详情")
     @GetMapping("/session-documents/{documentId}")
     public AjaxResult get(@PathVariable String documentId) {
         return AjaxResult.success(documentService.getById(documentId));
     }
 
-    @Operation(description = "List session document chunks")
+    @Operation(summary = "查询会话文档切片列表", description = "查询会话文档切片列表")
     @GetMapping("/session-documents/{documentId}/chunks")
     public AjaxResult chunks(@PathVariable String documentId) {
         KnowledgeChunk query = new KnowledgeChunk();
@@ -99,13 +99,13 @@ public class SessionDocumentController {
         return AjaxResult.success(chunkService.list(query));
     }
 
-    @Operation(description = "Embed session document chunks")
+    @Operation(summary = "向量化会话文档切片", description = "向量化会话文档切片")
     @PostMapping("/session-documents/{documentId}/embedding")
     public AjaxResult embedding(@PathVariable String documentId) {
         return AjaxResult.success(embeddingService.embedDocument(documentId));
     }
 
-    @Operation(description = "Delete session document")
+    @Operation(summary = "删除会话文档", description = "删除会话文档")
     @DeleteMapping("/session-documents/{documentId}")
     public AjaxResult delete(@PathVariable String documentId) {
         embeddingStoreProvider.ifAvailable(store -> store.deleteByDocumentId(documentId));

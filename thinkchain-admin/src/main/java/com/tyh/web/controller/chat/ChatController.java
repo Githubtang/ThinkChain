@@ -48,43 +48,43 @@ public class ChatController {
         this.modelRegistry = modelRegistry;
     }
 
-    @Operation(description = "统一对话")
+    @Operation(summary = "统一对话", description = "统一对话")
     @PostMapping("/send")
     public AjaxResult send(@RequestBody ChatRequest request) {
         return chatService.chat(request, null);
     }
 
-    @Operation(description = "统一流式对话")
+    @Operation(summary = "统一流式对话", description = "统一流式对话")
     @PostMapping("/stream")
     public SseEmitter stream(@RequestBody ChatRequest request) {
         return chatStreamService.stream(request, null);
     }
 
-    @Operation(description = "查询可用模型")
+    @Operation(summary = "查询可用模型", description = "查询可用模型")
     @GetMapping("/models")
     public AjaxResult models() {
         return AjaxResult.success(modelRegistry.listModels());
     }
 
-    @Operation(description = "查询会话列表")
+    @Operation(summary = "查询会话列表", description = "查询会话列表")
     @GetMapping("/conversations")
     public AjaxResult conversations(@RequestParam(required = false) String userId) {
         return AjaxResult.success(conversationService.listConversations(userId));
     }
 
-    @Operation(description = "查询会话消息列表")
+    @Operation(summary = "查询会话消息列表", description = "查询会话消息列表")
     @GetMapping("/conversations/{conversationId}/messages")
     public AjaxResult messages(@PathVariable String conversationId) {
         return AjaxResult.success(conversationService.listMessages(conversationId));
     }
 
-    @Operation(description = "删除会话")
+    @Operation(summary = "删除会话", description = "删除会话")
     @DeleteMapping("/conversations/{conversationId}")
     public AjaxResult deleteConversation(@PathVariable String conversationId) {
         return AjaxResult.success(conversationService.deleteConversation(conversationId));
     }
 
-    @Operation(description = "文本对话快捷入口")
+    @Operation(summary = "文本对话快捷入口", description = "文本对话快捷入口")
     @PostMapping("/text")
     public AjaxResult text(@RequestParam String model, @RequestParam String message) {
         return chatService.chat(model, message, Set.of("text", "chat"));

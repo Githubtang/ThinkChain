@@ -48,14 +48,14 @@ public class KnowledgeDocumentController {
         this.embeddingStoreProvider = embeddingStoreProvider;
     }
 
-    @Operation(description = "创建文档元数据")
+    @Operation(summary = "创建文档元数据", description = "创建文档元数据")
     @PostMapping("/knowledge-bases/{knowledgeBaseId}/documents")
     public AjaxResult create(@PathVariable String knowledgeBaseId, @RequestBody KnowledgeDocument document) {
         document.setKnowledgeBaseId(knowledgeBaseId);
         return AjaxResult.success(documentService.create(document));
     }
 
-    @Operation(description = "上传知识库文档")
+    @Operation(summary = "上传知识库文档", description = "上传知识库文档")
     @PostMapping("/knowledge-bases/{knowledgeBaseId}/documents/upload")
     public AjaxResult upload(@PathVariable String knowledgeBaseId,
                              @RequestParam(required = false) String userId,
@@ -80,27 +80,27 @@ public class KnowledgeDocumentController {
         }
     }
 
-    @Operation(description = "查询文档列表")
+    @Operation(summary = "查询文档列表", description = "查询文档列表")
     @GetMapping("/knowledge-bases/{knowledgeBaseId}/documents")
     public AjaxResult list(@PathVariable String knowledgeBaseId, KnowledgeDocument query) {
         query.setKnowledgeBaseId(knowledgeBaseId);
         return AjaxResult.success(documentService.list(query));
     }
 
-    @Operation(description = "查询文档详情")
+    @Operation(summary = "查询文档详情", description = "查询文档详情")
     @GetMapping("/documents/{documentId}")
     public AjaxResult get(@PathVariable String documentId) {
         return AjaxResult.success(documentService.getById(documentId));
     }
 
-    @Operation(description = "更新文档")
+    @Operation(summary = "更新文档", description = "更新文档")
     @PutMapping("/documents/{documentId}")
     public AjaxResult update(@PathVariable String documentId, @RequestBody KnowledgeDocument document) {
         document.setId(documentId);
         return AjaxResult.success(documentService.update(document));
     }
 
-    @Operation(description = "删除文档")
+    @Operation(summary = "删除文档", description = "删除文档")
     @DeleteMapping("/documents/{documentId}")
     public AjaxResult delete(@PathVariable String documentId) {
         embeddingStoreProvider.ifAvailable(store -> store.deleteByDocumentId(documentId));
@@ -108,7 +108,7 @@ public class KnowledgeDocumentController {
         return AjaxResult.success(documentService.deleteById(documentId));
     }
 
-    @Operation(description = "查询文档切片列表")
+    @Operation(summary = "查询文档切片列表", description = "查询文档切片列表")
     @GetMapping("/documents/{documentId}/chunks")
     public AjaxResult chunks(@PathVariable String documentId) {
         KnowledgeChunk query = new KnowledgeChunk();
@@ -116,13 +116,13 @@ public class KnowledgeDocumentController {
         return AjaxResult.success(chunkService.list(query));
     }
 
-    @Operation(description = "解析知识库文档")
+    @Operation(summary = "解析知识库文档", description = "解析知识库文档")
     @PostMapping("/documents/{documentId}/parse")
     public AjaxResult parse(@PathVariable String documentId) {
         return AjaxResult.success(parseService.parse(documentId));
     }
 
-    @Operation(description = "向量化知识库文档切片")
+    @Operation(summary = "向量化知识库文档切片", description = "向量化知识库文档切片")
     @PostMapping("/documents/{documentId}/embedding")
     public AjaxResult embedding(@PathVariable String documentId) {
         return AjaxResult.success(embeddingService.embedDocument(documentId));

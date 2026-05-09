@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "AI RAG Chat")
+@Tag(name = "AI RAG 对话")
 @RestController
 @RequestMapping("/ai/rag")
 public class RagChatController {
@@ -26,7 +26,7 @@ public class RagChatController {
         this.queryLogService = queryLogService;
     }
 
-    @Operation(description = "RAG chat")
+    @Operation(summary = "RAG 对话", description = "RAG 对话")
     @PostMapping("/chat")
     public AjaxResult chat(@RequestBody RagChatRequest request) {
         try {
@@ -36,7 +36,7 @@ public class RagChatController {
         }
     }
 
-    @Operation(description = "List RAG query logs")
+    @Operation(summary = "查询 RAG 检索日志", description = "查询 RAG 检索日志")
     @GetMapping("/query-logs")
     public AjaxResult logs(RagQueryLog query) {
         return AjaxResult.success(queryLogService.list(query));

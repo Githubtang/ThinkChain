@@ -25,32 +25,32 @@ public class KnowledgeBaseController {
         this.knowledgeBaseService = knowledgeBaseService;
     }
 
-    @Operation(description = "创建知识库")
+    @Operation(summary = "创建知识库", description = "创建知识库")
     @PostMapping
     public AjaxResult create(@RequestBody KnowledgeBase knowledgeBase) {
         return AjaxResult.success(knowledgeBaseService.create(knowledgeBase));
     }
 
-    @Operation(description = "查询知识库列表")
+    @Operation(summary = "查询知识库列表", description = "查询知识库列表")
     @GetMapping
     public AjaxResult list(KnowledgeBase query) {
         return AjaxResult.success(knowledgeBaseService.list(query));
     }
 
-    @Operation(description = "查询知识库详情")
+    @Operation(summary = "查询知识库详情", description = "查询知识库详情")
     @GetMapping("/{id}")
     public AjaxResult get(@PathVariable String id) {
         return AjaxResult.success(knowledgeBaseService.getById(id));
     }
 
-    @Operation(description = "更新知识库")
+    @Operation(summary = "更新知识库", description = "更新知识库")
     @PutMapping("/{id}")
     public AjaxResult update(@PathVariable String id, @RequestBody KnowledgeBase knowledgeBase) {
         knowledgeBase.setId(id);
         return AjaxResult.success(knowledgeBaseService.update(knowledgeBase));
     }
 
-    @Operation(description = "删除知识库")
+    @Operation(summary = "删除知识库", description = "删除知识库")
     @DeleteMapping("/{id}")
     public AjaxResult delete(@PathVariable String id) {
         return AjaxResult.success(knowledgeBaseService.deleteById(id));

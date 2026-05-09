@@ -35,7 +35,7 @@ public class QwenPLusController {
         this.chatService = chatService;
     }
     
-    @Operation(description = "基础对话")
+    @Operation(summary = "基础对话", description = "基础对话")
     @PostMapping("/send")
     public AjaxResult sendMessage(@RequestBody Map<String, String> requestBody) {
         String model = requestBody.getOrDefault("model", "qwen3.5-plus");
@@ -43,7 +43,7 @@ public class QwenPLusController {
         return chatService.chat(model, message, Set.of("text", "chat"));
     }
 
-    @Operation(description = "图片对话")
+    @Operation(summary = "图片对话", description = "图片对话")
     @PostMapping("/image")
     public AjaxResult imageMessage(@RequestBody Map<String, String> requestBody) {
         String model = requestBody.getOrDefault("model", "qwen3.5-plus");
