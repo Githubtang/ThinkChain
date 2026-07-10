@@ -61,3 +61,7 @@ Docker Compose
 ### 前端
 Vue.js 3
 Element Plus
+
+## 🌟 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Githubtang/ThinkChain&type=Date)](https://star-history.com/#Githubtang/ThinkChain&Date)
