@@ -59,12 +59,14 @@ spring:
       vector:
         enabled: true
         driverClassName: org.postgresql.Driver
-        url: jdbc:postgresql://localhost:5432/thinkchain
+        # Supabase Direct Connection（适用于支持 IPv6 的常驻后端）。
+        # 若部署环境仅支持 IPv4，请改用 Dashboard -> Connect 中的 Session Pooler 地址。
+        url: jdbc:postgresql://db.pkteuzurjbhnhzcnbkjz.supabase.co:5432/postgres?sslmode=require
         username: postgres
-        password:
-        initialSize: 2
-        minIdle: 2
-        maxActive: 10
+        password: a2545958861
+        initialSize: 1
+        minIdle: 1
+        maxActive: 5
         maxWait: 60000
         connectTimeout: 30000
         socketTimeout: 60000
