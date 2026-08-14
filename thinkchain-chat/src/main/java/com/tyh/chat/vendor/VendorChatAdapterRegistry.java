@@ -25,9 +25,11 @@ public class VendorChatAdapterRegistry {
      * @param adapters 容器中全部 {@link VendorChatAdapter} Bean（含各厂商实现与占位）
      */
     public VendorChatAdapterRegistry(List<VendorChatAdapter> adapters) {
+        // Spring 会把容器中所有 VendorChatAdapter 实现自动注入到这个列表。
         Map<String, VendorChatAdapter> map = new LinkedHashMap<>();
         for (VendorChatAdapter adapter : adapters) {
             String id = adapter.providerId().toLowerCase(Locale.ROOT);
+            // 相同 provider 只能有一个实现，否则系统无法判断该调用哪一个。
             if (map.put(id, adapter) != null) {
                 throw new IllegalStateException("重复的 VendorChatAdapter，providerId=" + id);
             }

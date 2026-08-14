@@ -16,7 +16,13 @@ import com.tyh.chat.rag.embedding.store.RagEmbeddingMatch;
 import com.tyh.chat.rag.embedding.store.RagEmbeddingStore;
 import com.tyh.chat.rag.log.domain.RagQueryLog;
 import com.tyh.chat.rag.log.service.RagQueryLogService;
+import com.tyh.chat.rag.retrieval.RagPromptBuilder;
+import com.tyh.chat.log.ChatLogSanitizer;
+import com.tyh.common.constant.HttpStatus;
 import com.tyh.common.core.domain.AjaxResult;
+import com.tyh.common.exception.ServiceException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
@@ -29,9 +35,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * 独立 RAG 问答的完整实现。
+ *
+ * <p>处理链路为：问题向量化 → 按知识库/会话范围检索 → 去重并按相似度排序 →
+ * 构造带参考资料的系统提示词 → 复用普通 ChatService 调用模型 → 返回引用来源并记录日志。</p>
+ */
 @Service
 public class RagChatServiceImpl implements RagChatService {
 
+    private static final Logger log = LoggerFactory.getLogger(RagChatServiceImpl.class);
     private static final int DEFAULT_TOP_K = 6;
 
     private final ChatService chatService;
@@ -39,22 +52,29 @@ public class RagChatServiceImpl implements RagChatService {
     private final ObjectProvider<RagEmbeddingStore> embeddingStoreProvider;
     private final RagQueryLogService queryLogService;
     private final ObjectMapper objectMapper;
+    private final RagPromptBuilder promptBuilder;
+    private final ChatLogSanitizer logSanitizer;
 
     public RagChatServiceImpl(ChatService chatService,
                               EmbeddingClient embeddingClient,
                               ObjectProvider<RagEmbeddingStore> embeddingStoreProvider,
                               RagQueryLogService queryLogService,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              RagPromptBuilder promptBuilder,
+                              ChatLogSanitizer logSanitizer) {
         this.chatService = chatService;
         this.embeddingClient = embeddingClient;
         this.embeddingStoreProvider = embeddingStoreProvider;
         this.queryLogService = queryLogService;
         this.objectMapper = objectMapper;
+        this.promptBuilder = promptBuilder;
+        this.logSanitizer = logSanitizer;
     }
 
     @Override
     public RagChatResponse chat(RagChatRequest request) {
         long start = System.currentTimeMillis();
+        // 先创建日志对象，后续无论在哪一步失败，都可以记录尽可能完整的上下文。
         RagQueryLog log = initLog(request);
         try {
             if (request == null) {
@@ -69,10 +89,12 @@ public class RagChatServiceImpl implements RagChatService {
             }
 
             int topK = request.getTopK() != null && request.getTopK() > 0 ? request.getTopK() : DEFAULT_TOP_K;
+            // 问题和文档切片必须使用兼容的向量模型，才能在同一个语义空间中比较距离。
             float[] queryEmbedding = embeddingClient.embed(request.getQuestion());
             List<RagEmbeddingMatch> matches = retrieve(request, store, queryEmbedding, topK);
             List<RagSource> sources = toSources(matches);
 
+            // 转成普通聊天请求，模型选择、厂商调用和模型日志就不需要重复实现。
             ChatRequest chatRequest = buildChatRequest(request, matches, topK);
             AjaxResult chatResult = chatService.chat(chatRequest, null);
             if (chatResult.isError()) {
@@ -86,17 +108,33 @@ public class RagChatServiceImpl implements RagChatService {
             response.setSources(sources);
             response.setElapsedMs(System.currentTimeMillis() - start);
 
-            completeLog(log, request, response, sources, topK, "SUCCESS", null, System.currentTimeMillis() - start);
+            completeLogQuietly(log, request, response, sources, topK, "SUCCESS", null,
+                    System.currentTimeMillis() - start);
             return response;
         } catch (Exception e) {
-            completeLog(log, request, null, List.of(), request != null ? request.getTopK() : null,
+            completeLogQuietly(log, request, null, List.of(), request != null ? request.getTopK() : null,
                     "FAILED", e.getMessage(), System.currentTimeMillis() - start);
-            throw new IllegalStateException(e.getMessage(), e);
+            if (e instanceof ServiceException serviceException) {
+                throw serviceException;
+            }
+            throw new ServiceException("RAG 对话失败，请稍后重试", HttpStatus.ERROR)
+                    .setDetailMessage(e.getMessage());
+        }
+    }
+
+    private void completeLogQuietly(RagQueryLog queryLog, RagChatRequest request, RagChatResponse response,
+                                    List<RagSource> sources, Integer topK, String status,
+                                    String errorMessage, Long elapsedMs) {
+        try {
+            completeLog(queryLog, request, response, sources, topK, status, errorMessage, elapsedMs);
+        } catch (Exception exception) {
+            log.warn("Failed to record RAG query log {}: {}", queryLog.getId(), exception.getMessage());
         }
     }
 
     private List<RagEmbeddingMatch> retrieve(RagChatRequest request, RagEmbeddingStore store,
                                              float[] queryEmbedding, int topK) {
+        // ragMode 决定搜索长期知识库、当前会话文档，或者两者都搜索。
         String mode = normalizedMode(request);
         List<RagEmbeddingMatch> all = new ArrayList<>();
         if (useKnowledgeBase(mode) && request.getKnowledgeBaseIds() != null) {
@@ -111,6 +149,7 @@ public class RagChatServiceImpl implements RagChatService {
             all.addAll(store.searchByScope("SESSION", request.getConversationId(),
                     request.getSessionDocumentIds(), queryEmbedding, topK));
         }
+        // 同一切片可能从多个范围命中，只保留分数最高的一条，避免重复内容占用上下文。
         Map<String, RagEmbeddingMatch> unique = new LinkedHashMap<>();
         for (RagEmbeddingMatch match : all) {
             if (match.getChunkId() == null) {
@@ -133,6 +172,7 @@ public class RagChatServiceImpl implements RagChatService {
         chatRequest.setUserId(request.getUserId());
         chatRequest.setModel(request.getModel());
         chatRequest.setOptions(request.getOptions());
+        // 本类已经完成检索，关闭普通 ChatService 的再次 RAG 增强，防止重复检索和重复提示词。
         chatRequest.setRagEnabled(false);
 
         List<Message> messages = new ArrayList<>();
@@ -140,7 +180,7 @@ public class RagChatServiceImpl implements RagChatService {
         system.setRole("system");
         Content systemContent = new Content();
         systemContent.setType("text");
-        systemContent.setText(buildPrompt(matches, topK));
+        systemContent.setText(promptBuilder.build(matches, topK));
         system.setContents(List.of(systemContent));
         messages.add(system);
 
@@ -153,26 +193,6 @@ public class RagChatServiceImpl implements RagChatService {
         messages.add(user);
         chatRequest.setMessages(messages);
         return chatRequest;
-    }
-
-    private String buildPrompt(List<RagEmbeddingMatch> matches, int topK) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("?????????????????????????????????? RAG_CONTEXT ??????????");
-        sb.append("???????????????????????????????????????????????????\n\n");
-        sb.append("RAG_CONTEXT(topK=").append(topK).append(")\n");
-        for (int i = 0; i < matches.size(); i++) {
-            RagEmbeddingMatch match = matches.get(i);
-            sb.append("[")
-                    .append(i + 1)
-                    .append("] scope=").append(match.getScopeType())
-                    .append(", documentId=").append(match.getDocumentId())
-                    .append(", chunkId=").append(match.getChunkId())
-                    .append(", score=").append(match.getScore())
-                    .append("\n")
-                    .append(match.getContent())
-                    .append("\n\n");
-        }
-        return sb.toString();
     }
 
     private List<RagSource> toSources(List<RagEmbeddingMatch> matches) {
@@ -215,12 +235,13 @@ public class RagChatServiceImpl implements RagChatService {
                              String errorMessage, Long elapsedMs) {
         log.setTopK(topK);
         log.setHitCount(sources != null ? sources.size() : 0);
-        log.setHitChunks(toJson(sources));
+        // 命中片段和回答可能很长，保存前统一做脱敏与截断。
+        log.setHitChunks(logSanitizer.sanitizeResponse(toJson(sources)));
         log.setElapsedMs(elapsedMs);
         log.setStatus(status);
-        log.setErrorMessage(errorMessage);
+        log.setErrorMessage(logSanitizer.sanitizeError(errorMessage));
         if (response != null) {
-            log.setAnswer(response.getAnswer());
+            log.setAnswer(logSanitizer.sanitizeResponse(response.getAnswer()));
         }
         if (sources != null && !sources.isEmpty()) {
             log.setMinScore(sources.stream()

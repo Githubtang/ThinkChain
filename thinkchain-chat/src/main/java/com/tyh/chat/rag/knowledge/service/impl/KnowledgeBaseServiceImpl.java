@@ -8,6 +8,11 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * 知识库元数据的 MyBatis 实现。
+ *
+ * <p>知识库本身不保存文件正文，只保存名称、说明、状态和统计数量；具体文档由 KnowledgeDocumentService 管理。</p>
+ */
 @Service
 public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
@@ -29,6 +34,7 @@ public class KnowledgeBaseServiceImpl implements KnowledgeBaseService {
 
     @Override
     public int create(KnowledgeBase knowledgeBase) {
+        // 控制器通常不传这些系统字段，因此在服务层统一生成，避免不同入口产生不同默认值。
         if (knowledgeBase.getId() == null || knowledgeBase.getId().isBlank()) {
             knowledgeBase.setId(UUID.randomUUID().toString());
         }

@@ -1,6 +1,8 @@
 package com.tyh.chat.rag.document.domain;
 
 import com.tyh.common.core.domain.BaseEntity;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 public class KnowledgeDocument extends BaseEntity {
 
@@ -9,11 +11,15 @@ public class KnowledgeDocument extends BaseEntity {
     private String id;
     private String knowledgeBaseId;
     private String userId;
+    @NotBlank(message = "文件名不能为空")
+    @Size(max = 255, message = "文件名长度不能超过255个字符")
     private String fileName;
     private String fileType;
     private String mimeType;
+    @Size(max = 500, message = "文件路径长度不能超过500个字符")
     private String filePath;
     private Long fileSize;
+    @Size(max = 255, message = "文档标题长度不能超过255个字符")
     private String title;
     private String status;
     private Integer chunkCount;

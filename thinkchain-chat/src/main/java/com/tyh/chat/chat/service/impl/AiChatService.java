@@ -11,6 +11,7 @@ import com.tyh.chat.conversation.domain.ChatConversation;
 import com.tyh.chat.conversation.domain.ChatMessage;
 import com.tyh.chat.conversation.service.ConversationService;
 import com.tyh.chat.log.domain.ModelCallLog;
+import com.tyh.chat.log.ChatLogSanitizer;
 import com.tyh.chat.log.service.ModelCallLogService;
 import com.tyh.chat.model.ModelEntry;
 import com.tyh.chat.model.ModelRegistry;
@@ -30,7 +31,14 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * 编排模型注册、能力校验、厂商适配调用、会话持久化与调用日志记录。
+ * {@link ChatService} 的主要实现，也是普通 AI 对话的业务编排中心。
+ *
+ * <p>这里的“编排”是把多个独立组件按顺序组合起来：模型注册表负责查找配置，
+ * 能力校验器检查模型是否支持文本或图片，厂商适配器负责真正调用模型，
+ * 会话服务保存消息，日志服务保存调用过程。</p>
+ *
+ * <p>本类不直接编写任何厂商 SDK 调用，因此增加新模型厂商时通常只需增加 VendorChatAdapter，
+ * 不需要复制整套会话和日志逻辑。</p>
  *
  * @Author: GithubTang
  * @Description: AI 对话编排服务
@@ -48,19 +56,22 @@ public class AiChatService implements ChatService {
     private final ConversationService conversationService;
     private final ModelCallLogService modelCallLogService;
     private final ObjectProvider<RagContextService> ragContextServiceProvider;
+    private final ChatLogSanitizer logSanitizer;
 
     public AiChatService(ModelRegistry modelRegistry,
                          CapabilityValidator capabilityValidator,
                          VendorChatAdapterRegistry vendorChatAdapterRegistry,
                          ConversationService conversationService,
                          ModelCallLogService modelCallLogService,
-                         ObjectProvider<RagContextService> ragContextServiceProvider) {
+                         ObjectProvider<RagContextService> ragContextServiceProvider,
+                         ChatLogSanitizer logSanitizer) {
         this.modelRegistry = modelRegistry;
         this.capabilityValidator = capabilityValidator;
         this.vendorChatAdapterRegistry = vendorChatAdapterRegistry;
         this.conversationService = conversationService;
         this.modelCallLogService = modelCallLogService;
         this.ragContextServiceProvider = ragContextServiceProvider;
+        this.logSanitizer = logSanitizer;
     }
 
     @Override
@@ -69,14 +80,17 @@ public class AiChatService implements ChatService {
         ModelEntry model = null;
         ChatMessage assistantMessage = null;
         try {
+            // 1. HTTP 接口虽然已经校验参数，但服务也可能被其他 Java 代码直接调用，因此仍做防御性检查。
             if (request == null) {
                 return AjaxResult.error("Request must not be null");
             }
             if (request.getModel() == null || request.getModel().isBlank()) {
                 return AjaxResult.error("Model name must not be blank");
             }
+            // 2. 逻辑模型名对应 application-ai.yml 中的一项配置；注册表不会把密钥返回给控制器。
             model = modelRegistry.getModel(request.getModel().trim());
 
+            // 3. 合并接口要求和消息内容推导出的能力，防止使用纯文本模型处理图片等内容。
             Set<String> required = new LinkedHashSet<>();
             if (requiredCapabilities != null) {
                 required.addAll(requiredCapabilities);
@@ -84,15 +98,18 @@ public class AiChatService implements ChatService {
             required.addAll(ChatCapabilityDeriver.derive(request));
             capabilityValidator.validate(model, required);
 
+            // 4. 先尽力保存会话和用户消息。保存失败不会阻止模型回答。
             ChatConversation conversation = persistConversationQuietly(request);
             persistUserMessagesQuietly(request, conversation);
 
+            // 5. 根据 provider 找厂商适配器；RAG 开启时先把检索资料加入模型请求。
             VendorChatAdapter adapter = vendorChatAdapterRegistry.getRequired(model.getProvider());
             ChatRequest modelRequest = augmentWithRagQuietly(request);
             VendorChatResult result = adapter.invoke(model, modelRequest);
             long elapsedMs = System.currentTimeMillis() - start;
             assistantMessage = persistAssistantMessageQuietly(request, model, result);
 
+            // 6. 厂商结果转换成项目统一响应，前端不需要理解每个厂商不同的返回结构。
             ChatResponse response = new ChatResponse();
             response.setConversationId(request.getConversationId());
             response.setMessageId(assistantMessage != null ? assistantMessage.getId() : null);
@@ -102,6 +119,7 @@ public class AiChatService implements ChatService {
             response.setElapsedMs(elapsedMs);
             response.setPromptTokens(result.getPromptTokens());
             response.setCompletionTokens(result.getCompletionTokens());
+            // 7. 日志记录采用“尽力而为”；日志失败不能覆盖已经成功得到的模型答案。
             recordCallLogQuietly(request, model, assistantMessage, result, "SUCCESS", null, elapsedMs);
             return AjaxResult.success(response);
         } catch (IllegalArgumentException | UnsupportedOperationException e) {
@@ -110,12 +128,13 @@ public class AiChatService implements ChatService {
         } catch (Exception e) {
             log.error("Model invocation failed", e);
             recordCallLogQuietly(request, model, assistantMessage, null, "FAILED", e.getMessage(), System.currentTimeMillis() - start);
-            return AjaxResult.error("Model invocation failed: " + e.getMessage());
+            return AjaxResult.error("模型调用失败，请稍后重试");
         }
     }
 
     @Override
     public AjaxResult chat(String modelName, String userInput, Set<String> requiredCapabilities) {
+        // 便捷入口只负责把纯文本转换成统一 DTO，后续仍走上面的完整流程。
         ChatRequest request = new ChatRequest();
         request.setModel(modelName);
         Message message = new Message();
@@ -131,6 +150,7 @@ public class AiChatService implements ChatService {
     }
 
     private ChatConversation persistConversationQuietly(ChatRequest request) {
+        // Quietly 表示该辅助方法会记录警告，但不会把持久化异常继续抛给模型调用流程。
         try {
             return conversationService.ensureConversation(request);
         } catch (Exception e) {
@@ -142,6 +162,7 @@ public class AiChatService implements ChatService {
     private ChatRequest augmentWithRagQuietly(ChatRequest request) {
         try {
             RagContextService service = ragContextServiceProvider.getIfAvailable();
+            // ObjectProvider 允许未配置 RAG 组件时继续使用普通聊天。
             return service != null ? service.augment(request) : request;
         } catch (Exception e) {
             log.warn("Failed to augment chat request with RAG context; continuing without RAG: {}", e.getMessage());
@@ -184,10 +205,11 @@ public class AiChatService implements ChatService {
             logRecord.setMessageId(message != null ? message.getId() : null);
             logRecord.setModel(model != null ? model.getName() : request != null ? request.getModel() : null);
             logRecord.setProvider(model != null ? model.getProvider() : null);
-            logRecord.setRequestBody(request != null ? request.toString() : null);
-            logRecord.setResponseBody(result != null ? result.getRawResponse() : null);
+            // 写数据库前做 JSON 序列化、密钥脱敏和长度截断，避免日志泄密或超过字段长度。
+            logRecord.setRequestBody(logSanitizer.serializeRequest(request));
+            logRecord.setResponseBody(result != null ? logSanitizer.sanitizeResponse(result.getRawResponse()) : null);
             logRecord.setStatus(status);
-            logRecord.setErrorMessage(errorMessage);
+            logRecord.setErrorMessage(logSanitizer.sanitizeError(errorMessage));
             logRecord.setElapsedMs(elapsedMs);
             modelCallLogService.record(logRecord);
         } catch (Exception e) {

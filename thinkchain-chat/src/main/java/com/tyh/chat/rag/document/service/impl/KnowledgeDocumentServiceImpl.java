@@ -8,6 +8,11 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * 知识库文档元数据的 MyBatis 实现。
+ *
+ * <p>本类不读取磁盘文件，也不生成切片；文件解析由 KnowledgeDocumentParseServiceImpl 完成。</p>
+ */
 @Service
 public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
 
@@ -29,6 +34,7 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
 
     @Override
     public int create(KnowledgeDocument document) {
+        // 新上传文档尚未解析，因此默认是 UPLOADED，切片数量从 0 开始。
         if (document.getId() == null || document.getId().isBlank()) {
             document.setId(UUID.randomUUID().toString());
         }

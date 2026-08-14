@@ -8,6 +8,11 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * 文档切片的 MyBatis 实现。
+ *
+ * <p>知识库文档和会话文档共用同一套切片表，通过 scopeType、knowledgeBaseId、conversationId 区分作用域。</p>
+ */
 @Service
 public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
 
@@ -29,6 +34,7 @@ public class KnowledgeChunkServiceImpl implements KnowledgeChunkService {
 
     @Override
     public int create(KnowledgeChunk chunk) {
+        // 解析阶段先创建 PENDING 切片，成功写入向量库后再更新为 EMBEDDED。
         if (chunk.getId() == null || chunk.getId().isBlank()) {
             chunk.setId(UUID.randomUUID().toString());
         }

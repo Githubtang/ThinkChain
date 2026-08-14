@@ -16,6 +16,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * 普通聊天请求的 RAG 增强实现。
+ *
+ * <p>与 RagChatServiceImpl 的区别是：本类只负责给 ChatRequest 增加参考资料，
+ * 不直接调用模型、不生成独立 RAG 响应，也不写 RAG 查询日志。</p>
+ */
 @Service
 public class RagContextServiceImpl implements RagContextService {
 
@@ -23,15 +29,19 @@ public class RagContextServiceImpl implements RagContextService {
 
     private final EmbeddingClient embeddingClient;
     private final ObjectProvider<RagEmbeddingStore> embeddingStoreProvider;
+    private final RagPromptBuilder promptBuilder;
 
     public RagContextServiceImpl(EmbeddingClient embeddingClient,
-                                 ObjectProvider<RagEmbeddingStore> embeddingStoreProvider) {
+                                 ObjectProvider<RagEmbeddingStore> embeddingStoreProvider,
+                                 RagPromptBuilder promptBuilder) {
         this.embeddingClient = embeddingClient;
         this.embeddingStoreProvider = embeddingStoreProvider;
+        this.promptBuilder = promptBuilder;
     }
 
     @Override
     public ChatRequest augment(ChatRequest request) {
+        // 未启用且没有选择资料时直接返回，避免不必要的向量模型调用。
         if (!shouldUseRag(request)) {
             return request;
         }
@@ -39,6 +49,7 @@ public class RagContextServiceImpl implements RagContextService {
         if (embeddingStore == null) {
             return request;
         }
+        // 只用最后一条用户文本检索，系统消息和历史模型回答不参与向量查询。
         String question = lastUserText(request);
         if (question.isBlank()) {
             return request;
@@ -47,6 +58,7 @@ public class RagContextServiceImpl implements RagContextService {
         float[] queryEmbedding = embeddingClient.embed(question);
         List<RagEmbeddingMatch> matches = retrieve(request, embeddingStore, queryEmbedding, topK);
         if (matches.isEmpty()) {
+            // 没有命中时不加入空提示词，保持原来的普通聊天行为。
             return request;
         }
         return withRagContext(request, matches, topK);
@@ -71,6 +83,7 @@ public class RagContextServiceImpl implements RagContextService {
                 }
             }
         }
+        // 同一个 chunkId 去重，只保留相似度最高的命中记录。
         Map<String, RagEmbeddingMatch> unique = new LinkedHashMap<>();
         for (RagEmbeddingMatch match : all) {
             if (match.getChunkId() == null) {
@@ -81,6 +94,7 @@ public class RagContextServiceImpl implements RagContextService {
                 unique.put(match.getChunkId(), match);
             }
         }
+        // SESSION 资料优先于 KB 资料；同一作用域内再按相似度从高到低排序。
         return unique.values().stream()
                 .sorted(Comparator
                         .comparing((RagEmbeddingMatch match) -> !"SESSION".equalsIgnoreCase(match.getScopeType()))
@@ -91,13 +105,14 @@ public class RagContextServiceImpl implements RagContextService {
     }
 
     private ChatRequest withRagContext(ChatRequest source, List<RagEmbeddingMatch> matches, int topK) {
+        // 创建副本而不是直接修改原请求，避免日志或其他调用方看到被悄悄改变的数据。
         ChatRequest target = copyRequest(source);
         List<Message> messages = new ArrayList<>();
         Message system = new Message();
         system.setRole("system");
         Content content = new Content();
         content.setType("text");
-        content.setText(buildContext(matches, topK));
+        content.setText(promptBuilder.build(matches, topK));
         system.setContents(List.of(content));
         messages.add(system);
         if (source.getMessages() != null) {
@@ -105,28 +120,6 @@ public class RagContextServiceImpl implements RagContextService {
         }
         target.setMessages(messages);
         return target;
-    }
-
-    private String buildContext(List<RagEmbeddingMatch> matches, int topK) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("Use the following RAG context to answer the user. ");
-        sb.append("Prefer SESSION context over KB context. ");
-        sb.append("If the context is insufficient, say that the provided documents do not contain enough information.\n\n");
-        sb.append("RAG_CONTEXT(topK=").append(topK).append(")\n");
-        for (int i = 0; i < matches.size(); i++) {
-            RagEmbeddingMatch match = matches.get(i);
-            sb.append("[")
-                    .append(i + 1)
-                    .append("] scope=").append(match.getScopeType())
-                    .append(", scopeId=").append(match.getScopeId())
-                    .append(", documentId=").append(match.getDocumentId())
-                    .append(", chunkId=").append(match.getChunkId())
-                    .append(", score=").append(match.getScore())
-                    .append("\n")
-                    .append(match.getContent())
-                    .append("\n\n");
-        }
-        return sb.toString();
     }
 
     private ChatRequest copyRequest(ChatRequest source) {

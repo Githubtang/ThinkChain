@@ -25,6 +25,9 @@ import java.util.Objects;
  * 阿里云 DashScope 官方 Java SDK 适配器：通过 {@link MultiModalConversation} 调用多模态对话，
  * 将统一 {@link com.tyh.chat.chat.dto.ChatRequest} 转为 {@link MultiModalMessage}。
  *
+ * <p>当前实现会把历史消息整理成文本前缀，把最后一条 user 消息保留为多模态片段。
+ * ModelCallOptions 暂未映射到 SDK 参数，后续若需要 temperature、topP 等参数，应在构造 param 时补充。</p>
+ *
  * @Author: GithubTang
  * @Description: DashScope 官方 SDK 多模态对话适配实现
  * @Date: 2026/4/11
@@ -52,6 +55,7 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
             throw new IllegalArgumentException("messages 不能为空");
         }
 
+        // 领域 DTO 不能直接传给厂商 SDK，需要先转换成 DashScope 的消息结构。
         MultiModalMessage userMessage = buildUserMultiModalMessage(messages);
         MultiModalConversationParam param = MultiModalConversationParam.builder()
                 .apiKey(model.getApiKey())
@@ -59,12 +63,14 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
                 .message(userMessage)
                 .build();
 
+        // 真正的外部网络调用发生在 conv.call；网络、鉴权或模型错误会向上抛给 AiChatService 统一处理。
         MultiModalConversation conv = new MultiModalConversation();
         MultiModalConversationResult result = conv.call(param);
         String text = extractAssistantText(result);
         if (text == null || text.isBlank()) {
             log.warn("DashScope 返回空文本, model={}", model.getName());
         }
+        // 返回统一结果，避免上层代码依赖 DashScope 的 MultiModalConversationResult 类型。
         VendorChatResult chatResult = VendorChatResult.of(text != null ? text : "");
         chatResult.setRawResponse(result != null ? result.toString() : null);
         return chatResult;

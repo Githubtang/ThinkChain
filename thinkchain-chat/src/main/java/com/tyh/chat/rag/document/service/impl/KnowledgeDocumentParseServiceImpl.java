@@ -22,6 +22,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+/**
+ * 知识库文本文件解析实现。
+ *
+ * <p>当前阶段只支持可直接按 UTF-8 读取的文本类文件，不支持 PDF、Word。
+ * 文本按 1200 个字符切片，相邻切片重叠 120 个字符，重叠可以减少一句话刚好在边界被截断造成的信息丢失。</p>
+ */
 @Service
 public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParseService {
 
@@ -45,11 +51,13 @@ public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParse
 
     @Override
     public KnowledgeDocument parse(String documentId) {
+        // 先查元数据，因为磁盘路径、知识库归属和展示标题都来自该记录。
         KnowledgeDocument document = documentService.getById(documentId);
         if (document == null) {
             throw new IllegalArgumentException("Knowledge document not found: " + documentId);
         }
         try {
+            // 状态会被前端用于显示当前处理阶段：读取中、切片中、完成或失败。
             mark(document, "PARSING", null, null);
             String text = readText(document);
             mark(document, "CHUNKING", null, null);
@@ -57,6 +65,7 @@ public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParse
             if (chunks.isEmpty()) {
                 throw new IllegalArgumentException("Document text is empty");
             }
+            // 允许重新解析：先清理旧向量和旧切片，避免同一文档保留两套重复数据。
             embeddingStoreProvider.ifAvailable(store -> store.deleteByDocumentId(document.getId()));
             chunkService.deleteByDocumentId(document.getId());
             for (int i = 0; i < chunks.size(); i++) {
@@ -68,6 +77,7 @@ public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParse
                 chunk.setDocumentId(document.getId());
                 chunk.setChunkIndex(i);
                 chunk.setContent(content);
+                // 内容哈希可用于判断内容是否变化；Token 数目前只是按字符数估算，不是模型精确计数。
                 chunk.setContentHash(sha256(content));
                 chunk.setTokenCount(estimateTokens(content));
                 chunk.setCharCount(content.length());
@@ -77,6 +87,7 @@ public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParse
             }
             mark(document, "COMPLETED", chunks.size(), null);
         } catch (Exception e) {
+            // 解析失败不把异常细节直接返回前端，而是保存到文档记录供服务端排查。
             mark(document, "FAILED", 0, e.getMessage());
         }
         return documentService.getById(documentId);
@@ -94,6 +105,7 @@ public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParse
     }
 
     private Path resolveLocalPath(String filePath) {
+        // 数据库存储的是 /profile/upload/... 形式的访问路径，这里转换回服务器磁盘路径。
         String relativePath = FileUtils.stripPrefix(filePath);
         if (relativePath == null || relativePath.isBlank()) {
             relativePath = filePath;
@@ -117,6 +129,7 @@ public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParse
             if (end == normalized.length()) {
                 break;
             }
+            // 下一片向前回退一段形成重叠，同时至少前进 1 个字符，避免死循环。
             start = Math.max(end - CHUNK_OVERLAP, start + 1);
         }
         return chunks;

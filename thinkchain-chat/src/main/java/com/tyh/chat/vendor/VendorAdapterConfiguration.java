@@ -15,11 +15,13 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class VendorAdapterConfiguration {
 
+    /** OpenAI 当前只注册占位实现，调用时会明确提示未接入，不影响系统启动。 */
     @Bean
     public VendorChatAdapter openAiVendorPlaceholder() {
         return new PlaceholderVendorChatAdapter("openai");
     }
 
+    /** 智谱当前只注册占位实现，调用时会明确提示未接入，不影响系统启动。 */
     @Bean
     public VendorChatAdapter zhipuVendorPlaceholder() {
         return new PlaceholderVendorChatAdapter("zhipu");

@@ -9,12 +9,16 @@ import com.tyh.chat.conversation.mapper.ChatConversationMapper;
 import com.tyh.chat.conversation.mapper.ChatMessageMapper;
 import com.tyh.chat.conversation.service.ConversationService;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
 
 /**
- * 会话持久化服务实现。
+ * 会话持久化实现，通过 MyBatis Mapper 操作会话表和消息表。
+ *
+ * <p>新会话会从第一条用户文本生成简短标题；消息同时保存扁平文本和原始 JSON：
+ * 扁平文本方便展示，原始 JSON 用来保留图片、文件等多模态结构。</p>
  *
  * @Author: GithubTang
  * @Description: 会话服务实现
@@ -33,7 +37,13 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     @Override
+    public ChatConversation getConversation(String conversationId) {
+        return conversationMapper.selectChatConversationById(conversationId);
+    }
+
+    @Override
     public ChatConversation ensureConversation(ChatRequest request) {
+        // 带会话 ID 表示继续已有对话。资源归属已经由控制器入口的 ChatAccessService 校验。
         String conversationId = request.getConversationId();
         if (conversationId != null && !conversationId.isBlank()) {
             ChatConversation existing = conversationMapper.selectChatConversationById(conversationId);
@@ -42,6 +52,7 @@ public class ConversationServiceImpl implements ConversationService {
             }
         }
 
+        // 不带 ID 或原会话不存在时创建新会话，并回写 ID 供后续消息关联。
         ChatConversation conversation = new ChatConversation();
         conversation.setId(UUID.randomUUID().toString());
         conversation.setUserId(request.getUserId());
@@ -55,6 +66,7 @@ public class ConversationServiceImpl implements ConversationService {
 
     @Override
     public ChatMessage saveUserMessage(String conversationId, String model, Message message) {
+        // content 保存便于阅读的文本；rawContent 保存完整 Message JSON，防止多模态字段丢失。
         ChatMessage chatMessage = new ChatMessage();
         chatMessage.setId(UUID.randomUUID().toString());
         chatMessage.setConversationId(conversationId);
@@ -96,12 +108,15 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     @Override
+    @Transactional
     public int deleteConversation(String conversationId) {
+        // 先删子表消息再删父表会话，既符合外键关系，也保证两个操作处于同一数据库事务。
         messageMapper.deleteChatMessagesByConversationId(conversationId);
         return conversationMapper.deleteChatConversationById(conversationId);
     }
 
     private static String buildTitle(ChatRequest request) {
+        // 标题只取第一条用户文本并限制长度，避免整个长问题出现在会话列表。
         if (request.getMessages() == null || request.getMessages().isEmpty()) {
             return "New Chat";
         }

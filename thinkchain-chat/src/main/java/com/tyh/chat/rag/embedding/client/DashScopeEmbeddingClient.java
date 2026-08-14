@@ -10,6 +10,12 @@ import org.springframework.web.client.RestTemplate;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 阿里云 DashScope 文本向量接口实现。
+ *
+ * <p>本类只负责 HTTP 协议转换：读取配置、设置 Bearer 密钥、发送文本并把厂商 JSON 中的数字列表
+ * 转为 float[]。它不负责切片、保存数据库或相似度检索。</p>
+ */
 @Component
 public class DashScopeEmbeddingClient implements EmbeddingClient {
 
@@ -29,6 +35,7 @@ public class DashScopeEmbeddingClient implements EmbeddingClient {
 
     @Override
     public float[] embed(String text) {
+        // 提前检查密钥，可以给出比远端 401 更容易理解的配置错误。
         if (properties.getApiKey() == null || properties.getApiKey().isBlank()) {
             throw new IllegalStateException("DashScope embedding apiKey is blank");
         }
@@ -36,6 +43,7 @@ public class DashScopeEmbeddingClient implements EmbeddingClient {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(properties.getApiKey());
+        // dimensions 必须与数据库 rag_embedding.embedding 的 vector(n) 维度一致。
         Map<String, Object> body = Map.of(
                 "model", properties.getModelName(),
                 "input", Map.of("texts", List.of(text != null ? text : "")),
@@ -48,6 +56,7 @@ public class DashScopeEmbeddingClient implements EmbeddingClient {
 
     @SuppressWarnings("unchecked")
     private static float[] extractEmbedding(Map<String, Object> response) {
+        // 厂商返回采用多层 Map/List 结构，逐层检查可避免格式变化时出现难理解的类型转换异常。
         if (response == null) {
             throw new IllegalStateException("DashScope embedding response is empty");
         }

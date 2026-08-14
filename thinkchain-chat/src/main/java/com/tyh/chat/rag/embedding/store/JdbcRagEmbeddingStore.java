@@ -9,6 +9,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * 使用 Spring JdbcTemplate 操作 PostgreSQL pgvector 的向量存储实现。
+ *
+ * <p>{@code @ConditionalOnBean} 表示只有成功创建 vectorJdbcTemplate（Supabase 向量数据源）时，
+ * Spring 才注册本类；因此主数据库可用但向量数据库未配置时，普通系统模块仍可启动。</p>
+ */
 @Repository
 @ConditionalOnBean(name = "vectorJdbcTemplate")
 public class JdbcRagEmbeddingStore implements RagEmbeddingStore {
@@ -21,10 +27,12 @@ public class JdbcRagEmbeddingStore implements RagEmbeddingStore {
 
     @Override
     public int save(RagEmbeddingRecord record) {
+        // scopeType/scopeId 是统一检索字段：KB 对应知识库，SESSION 对应当前会话。
         String scopeType = firstNonBlank(record.getScopeType(), isNonBlank(record.getConversationId()) ? "SESSION" : "KB");
         String scopeId = firstNonBlank(record.getScopeId(), "SESSION".equalsIgnoreCase(scopeType)
                 ? record.getConversationId()
                 : record.getKnowledgeBaseId());
+        // ON CONFLICT 使相同 ID 再次写入时执行更新，避免产生重复主键错误。
         String sql = """
                 insert into rag_embedding (
                     id, scope_type, scope_id, knowledge_base_id, conversation_id, document_id,
@@ -79,6 +87,7 @@ public class JdbcRagEmbeddingStore implements RagEmbeddingStore {
     @Override
     public List<RagEmbeddingMatch> searchByScope(String scopeType, String scopeId, List<String> documentIds,
                                                  float[] queryEmbedding, int topK) {
+        // pgvector 的 <=> 是余弦距离；距离越小越相似，1 - 距离转换为越大越相似的 score。
         StringBuilder sql = new StringBuilder("""
                 select id, scope_type, scope_id, knowledge_base_id, conversation_id, document_id, chunk_id, content,
                        1 - (embedding <=> cast(? as vector)) as score
@@ -92,6 +101,7 @@ public class JdbcRagEmbeddingStore implements RagEmbeddingStore {
         args.add(scopeType);
         args.add(scopeId);
         if (documentIds != null && !documentIds.isEmpty()) {
+            // 占位符数量根据文档数动态生成，但具体 ID 仍作为参数传入，避免 SQL 注入。
             sql.append(" and document_id in (");
             for (int i = 0; i < documentIds.size(); i++) {
                 if (i > 0) {
@@ -135,6 +145,7 @@ public class JdbcRagEmbeddingStore implements RagEmbeddingStore {
     }
 
     private static String toVectorLiteral(float[] vector) {
+        // PostgreSQL JDBC 不直接认识 float[] 的 vector 类型，因此转换成 pgvector 接受的 [1.0,2.0] 文本格式。
         if (vector == null || vector.length == 0) {
             throw new IllegalArgumentException("Embedding vector must not be empty");
         }

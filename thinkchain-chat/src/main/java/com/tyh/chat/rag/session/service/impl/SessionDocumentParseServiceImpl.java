@@ -22,6 +22,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+/**
+ * 会话临时文本文件解析实现。
+ *
+ * <p>处理方式与知识库文档相同，但生成的切片标记为 SESSION，并绑定 conversationId，
+ * 检索时只能在对应会话和用户选中的文档范围内使用。</p>
+ */
 @Service
 public class SessionDocumentParseServiceImpl implements SessionDocumentParseService {
 
@@ -45,6 +51,7 @@ public class SessionDocumentParseServiceImpl implements SessionDocumentParseServ
 
     @Override
     public SessionDocument parse(String documentId) {
+        // 元数据提供磁盘路径、原始文件名和所属会话。
         SessionDocument document = documentService.getById(documentId);
         if (document == null) {
             throw new IllegalArgumentException("Session document not found: " + documentId);
@@ -56,11 +63,13 @@ public class SessionDocumentParseServiceImpl implements SessionDocumentParseServ
             if (chunks.isEmpty()) {
                 throw new IllegalArgumentException("Document text is empty");
             }
+            // 重新解析前删除旧向量和旧切片，保证一个文档只有当前版本的数据。
             embeddingStoreProvider.ifAvailable(store -> store.deleteByDocumentId(document.getId()));
             chunkService.deleteByDocumentId(document.getId());
             int tokenCount = 0;
             for (int i = 0; i < chunks.size(); i++) {
                 String content = chunks.get(i);
+                // Token 数用于粗略衡量上下文大小，目前采用字符数除以 4 的近似算法。
                 int chunkTokens = estimateTokens(content);
                 tokenCount += chunkTokens;
                 KnowledgeChunk chunk = new KnowledgeChunk();
@@ -79,6 +88,7 @@ public class SessionDocumentParseServiceImpl implements SessionDocumentParseServ
             }
             mark(document, "READY", chunks.size(), tokenCount, null);
         } catch (Exception e) {
+            // 失败状态和内部原因落库，控制器只向客户端返回通用解析失败信息。
             mark(document, "FAILED", 0, 0, e.getMessage());
         }
         return documentService.getById(documentId);
@@ -98,6 +108,7 @@ public class SessionDocumentParseServiceImpl implements SessionDocumentParseServ
     }
 
     private Path resolveLocalPath(String filePath) {
+        // 将 /profile/upload/... 访问路径还原为 ThinkChainConfig.profile 下的本地文件路径。
         String relativePath = FileUtils.stripPrefix(filePath);
         if (relativePath == null || relativePath.isBlank()) {
             relativePath = filePath;
@@ -121,6 +132,7 @@ public class SessionDocumentParseServiceImpl implements SessionDocumentParseServ
             if (end == normalized.length()) {
                 break;
             }
+            // 保留 120 字符重叠，减少上下文在切片边界处断裂。
             start = Math.max(end - CHUNK_OVERLAP, start + 1);
         }
         return chunks;

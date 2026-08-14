@@ -8,6 +8,11 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * 会话临时文档元数据的 MyBatis 实现。
+ *
+ * <p>与知识库文档不同，这类文档绑定 conversationId，只应在所属会话的 RAG 检索中使用。</p>
+ */
 @Service
 public class SessionDocumentServiceImpl implements SessionDocumentService {
 
@@ -29,6 +34,7 @@ public class SessionDocumentServiceImpl implements SessionDocumentService {
 
     @Override
     public int create(SessionDocument document) {
+        // PENDING 表示文件已登记但尚未成功完成解析。
         if (document.getId() == null || document.getId().isBlank()) {
             document.setId(UUID.randomUUID().toString());
         }

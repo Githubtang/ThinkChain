@@ -27,6 +27,7 @@ public final class PlaceholderVendorChatAdapter implements VendorChatAdapter {
 
     @Override
     public VendorChatResult invoke(ModelEntry model, ChatRequest request) {
+        // 占位实现绝不伪造模型结果，只有真正接入 SDK 后才允许正常返回。
         throw new UnsupportedOperationException(
                 "厂商 [" + providerId + "] 尚未接入官方 Java SDK：请在 com.tyh.chat.vendor 下实现 VendorChatAdapter 并注册为 Spring Bean。");
     }

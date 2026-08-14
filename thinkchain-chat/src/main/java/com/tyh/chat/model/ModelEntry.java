@@ -1,5 +1,7 @@
 package com.tyh.chat.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 import java.util.Set;
 
 /**
@@ -36,6 +38,7 @@ public class ModelEntry {
         return provider;
     }
 
+    @JsonIgnore
     public String getApiKey() {
         return apiKey;
     }

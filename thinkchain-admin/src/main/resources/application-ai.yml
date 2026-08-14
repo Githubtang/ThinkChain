@@ -11,28 +11,18 @@ langchain4j:
           - text
           - chat
 
-      - name: qwen3-omni-flash
+      - name: qwen3.7-plus
         provider: dashscope
-        apiKey: ${DASHSCOPE_API_KEY:}
-        baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1"
-        modelName: "qwen3-omni-flash"
+        apiKey: sk-4de5835348a14c6987cc23e31ed68f48
+        baseUrl: "https://llm-wxfgsuswv5x5lqkd.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+        modelName: qwen3.7-plus
         enabled: true
         capabilities:
           - text
           - chat
           - document
           - image
-      - name: qwen3.5-plus
-        provider: dashscope
-        apiKey: ${DASHSCOPE_API_KEY:}
-        baseUrl: "https://dashscope.aliyuncs.com/api/v1"
-        modelName: "qwen3.5-plus"
-        enabled: true
-        capabilities:
-          - text
-          - chat
-          - document
-          - image
+          - video
 
       - name: zhipu-glm
         provider: zhipu

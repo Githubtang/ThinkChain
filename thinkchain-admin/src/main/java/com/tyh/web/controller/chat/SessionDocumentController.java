@@ -3,17 +3,18 @@ package com.tyh.web.controller.chat;
 import com.tyh.chat.rag.chunk.domain.KnowledgeChunk;
 import com.tyh.chat.rag.chunk.service.KnowledgeChunkService;
 import com.tyh.chat.rag.embedding.service.RagEmbeddingService;
-import com.tyh.chat.rag.embedding.store.RagEmbeddingStore;
 import com.tyh.chat.rag.session.domain.SessionDocument;
 import com.tyh.chat.rag.session.service.SessionDocumentParseService;
 import com.tyh.chat.rag.session.service.SessionDocumentService;
-import com.tyh.common.config.ThinkChainConfig;
+import com.tyh.chat.security.ChatAccessService;
+import com.tyh.chat.security.ChatResourceDeletionService;
+import com.tyh.chat.validation.ChatFileValidator;
+import com.tyh.common.constant.HttpStatus;
 import com.tyh.common.core.domain.AjaxResult;
-import com.tyh.common.utils.file.FileUploadUtils;
+import com.tyh.common.exception.ServiceException;
 import com.tyh.framework.config.ServerConfig;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,6 +24,12 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+/**
+ * 当前会话临时文档接口。
+ *
+ * <p>这类文档只服务于一个 conversationId，不进入长期知识库。
+ * RAG 请求使用会话文档时，后端会同时检查用户归属和会话归属。</p>
+ */
 @Tag(name = "AI 会话文档")
 @RestController
 @RequestMapping("/ai/chat")
@@ -32,67 +39,78 @@ public class SessionDocumentController {
     private final SessionDocumentParseService parseService;
     private final RagEmbeddingService embeddingService;
     private final KnowledgeChunkService chunkService;
-    private final ObjectProvider<RagEmbeddingStore> embeddingStoreProvider;
     private final ServerConfig serverConfig;
+    private final ChatAccessService accessService;
+    private final ChatResourceDeletionService deletionService;
+    private final ChatFileValidator fileValidator;
 
     public SessionDocumentController(SessionDocumentService documentService,
                                      SessionDocumentParseService parseService,
                                      RagEmbeddingService embeddingService,
                                      KnowledgeChunkService chunkService,
-                                     ObjectProvider<RagEmbeddingStore> embeddingStoreProvider,
-                                     ServerConfig serverConfig) {
+                                     ServerConfig serverConfig,
+                                     ChatAccessService accessService,
+                                     ChatResourceDeletionService deletionService,
+                                     ChatFileValidator fileValidator) {
         this.documentService = documentService;
         this.parseService = parseService;
         this.embeddingService = embeddingService;
         this.chunkService = chunkService;
-        this.embeddingStoreProvider = embeddingStoreProvider;
         this.serverConfig = serverConfig;
+        this.accessService = accessService;
+        this.deletionService = deletionService;
+        this.fileValidator = fileValidator;
     }
 
     @Operation(summary = "上传会话文档", description = "上传会话文档")
     @PostMapping("/conversations/{conversationId}/documents")
     public AjaxResult upload(@PathVariable String conversationId,
-                             @RequestParam(required = false) String userId,
                              @RequestParam("file") MultipartFile file) {
-        try {
-            String fileName = FileUploadUtils.upload(ThinkChainConfig.getUploadPath(), file);
-            SessionDocument document = new SessionDocument();
-            document.setConversationId(conversationId);
-            document.setUserId(userId);
-            document.setFileName(fileName);
-            document.setOriginalFileName(file.getOriginalFilename());
-            document.setFileUrl(serverConfig.getUrl() + fileName);
-            document.setFilePath(fileName);
-            document.setMimeType(file.getContentType());
-            document.setFileSize(file.getSize());
-            document.setParseStatus("PENDING");
-            document.setChunkCount(0);
-            documentService.create(document);
-            return AjaxResult.success(parseService.parse(document.getId()));
-        } catch (Exception e) {
-            return AjaxResult.error(e.getMessage());
+        // 会话归属通过后才允许写文件和创建文档元数据。
+        accessService.requireConversation(conversationId);
+        String fileName = fileValidator.upload(file);
+        SessionDocument document = new SessionDocument();
+        document.setConversationId(conversationId);
+        document.setUserId(accessService.currentUserId());
+        document.setFileName(fileName);
+        document.setOriginalFileName(file.getOriginalFilename());
+        document.setFileUrl(serverConfig.getUrl() + fileName);
+        document.setFilePath(fileName);
+        document.setMimeType(file.getContentType());
+        document.setFileSize(file.getSize());
+        document.setParseStatus("PENDING");
+        document.setChunkCount(0);
+        documentService.create(document);
+        SessionDocument parsed = parseService.parse(document.getId());
+        if (parsed != null && "FAILED".equals(parsed.getParseStatus())) {
+            throw new ServiceException("文档解析失败", HttpStatus.BAD_REQUEST)
+                    .setDetailMessage(parsed.getErrorMessage());
         }
+        return AjaxResult.success(parsed);
     }
 
     @Operation(summary = "查询会话文档列表", description = "查询会话文档列表")
     @GetMapping("/conversations/{conversationId}/documents")
     public AjaxResult list(@PathVariable String conversationId,
-                           @RequestParam(required = false) String userId) {
+                           @RequestParam(required = false) String parseStatus) {
+        accessService.requireConversation(conversationId);
         SessionDocument query = new SessionDocument();
         query.setConversationId(conversationId);
-        query.setUserId(userId);
+        query.setUserId(accessService.currentUserId());
+        query.setParseStatus(parseStatus);
         return AjaxResult.success(documentService.list(query));
     }
 
     @Operation(summary = "查询会话文档详情", description = "查询会话文档详情")
     @GetMapping("/session-documents/{documentId}")
     public AjaxResult get(@PathVariable String documentId) {
-        return AjaxResult.success(documentService.getById(documentId));
+        return AjaxResult.success(accessService.requireSessionDocument(documentId));
     }
 
     @Operation(summary = "查询会话文档切片列表", description = "查询会话文档切片列表")
     @GetMapping("/session-documents/{documentId}/chunks")
     public AjaxResult chunks(@PathVariable String documentId) {
+        accessService.requireSessionDocument(documentId);
         KnowledgeChunk query = new KnowledgeChunk();
         query.setDocumentId(documentId);
         query.setScopeType("SESSION");
@@ -102,14 +120,15 @@ public class SessionDocumentController {
     @Operation(summary = "向量化会话文档切片", description = "向量化会话文档切片")
     @PostMapping("/session-documents/{documentId}/embedding")
     public AjaxResult embedding(@PathVariable String documentId) {
+        accessService.requireSessionDocument(documentId);
         return AjaxResult.success(embeddingService.embedDocument(documentId));
     }
 
     @Operation(summary = "删除会话文档", description = "删除会话文档")
     @DeleteMapping("/session-documents/{documentId}")
     public AjaxResult delete(@PathVariable String documentId) {
-        embeddingStoreProvider.ifAvailable(store -> store.deleteByDocumentId(documentId));
-        chunkService.deleteByDocumentId(documentId);
-        return AjaxResult.success(documentService.deleteById(documentId));
+        // 删除服务统一清理 Supabase 向量、主库切片/元数据和磁盘文件。
+        SessionDocument document = accessService.requireSessionDocument(documentId);
+        return AjaxResult.success(deletionService.deleteSessionDocument(document));
     }
 }
