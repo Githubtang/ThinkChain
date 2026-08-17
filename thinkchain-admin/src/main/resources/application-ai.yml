@@ -23,6 +23,7 @@ langchain4j:
           - document
           - image
           - video
+          - audio
 
       - name: zhipu-glm
         provider: zhipu
