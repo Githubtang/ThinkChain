@@ -28,7 +28,7 @@ import org.springframework.web.multipart.MultipartFile;
  * 当前会话临时文档接口。
  *
  * <p>这类文档只服务于一个 conversationId，不进入长期知识库。上传后会自动完成解析、切片和向量化；
- * RAG 请求使用会话文档时，后端会同时检查用户归属和会话归属。</p>
+ * 支持文本、PDF、Word、Excel 和 PowerPoint。RAG 请求使用会话文档时，后端会同时检查用户归属和会话归属。</p>
  */
 @Tag(name = "AI 会话文档")
 @RestController
@@ -62,7 +62,8 @@ public class SessionDocumentController {
         this.fileValidator = fileValidator;
     }
 
-    @Operation(summary = "上传会话文档", description = "上传会话文档")
+    @Operation(summary = "上传会话文档",
+            description = "支持文本、pdf、doc、docx、xls、xlsx、ppt、pptx；上传后自动解析、切片和向量化")
     @PostMapping("/conversations/{conversationId}/documents")
     public AjaxResult upload(@PathVariable String conversationId,
                              @RequestParam("file") MultipartFile file) {

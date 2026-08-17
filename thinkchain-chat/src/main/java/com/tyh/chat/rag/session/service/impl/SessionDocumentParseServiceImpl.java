@@ -2,51 +2,47 @@ package com.tyh.chat.rag.session.service.impl;
 
 import com.tyh.chat.rag.chunk.domain.KnowledgeChunk;
 import com.tyh.chat.rag.chunk.service.KnowledgeChunkService;
+import com.tyh.chat.rag.document.extractor.DocumentTextExtractor;
 import com.tyh.chat.rag.embedding.store.RagEmbeddingStore;
 import com.tyh.chat.rag.session.domain.SessionDocument;
 import com.tyh.chat.rag.session.service.SessionDocumentParseService;
 import com.tyh.chat.rag.session.service.SessionDocumentService;
 import com.tyh.common.config.ThinkChainConfig;
 import com.tyh.common.utils.file.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 
 /**
- * 会话临时文本文件解析实现。
+ * 会话临时文档解析和切片实现。
  *
- * <p>处理方式与知识库文档相同，但生成的切片标记为 SESSION，并绑定 conversationId，
- * 检索时只能在对应会话和用户选中的文档范围内使用。</p>
+ * <p>DocumentTextExtractor 负责读取文本、PDF 和 Office 文件；本类负责生成 SESSION 切片并绑定
+ * conversationId，检索时只能在对应会话和用户选中的文档范围内使用。</p>
  */
 @Service
 public class SessionDocumentParseServiceImpl implements SessionDocumentParseService {
 
     private static final int CHUNK_SIZE = 1200;
     private static final int CHUNK_OVERLAP = 120;
-    private static final Set<String> TEXT_EXTENSIONS = Set.of(
-            "txt", "md", "markdown", "csv", "json", "xml", "html", "htm",
-            "log", "sql", "java", "js", "ts", "css", "yml", "yaml", "properties");
-
     private final SessionDocumentService documentService;
     private final KnowledgeChunkService chunkService;
     private final ObjectProvider<RagEmbeddingStore> embeddingStoreProvider;
+    private final DocumentTextExtractor textExtractor;
 
     public SessionDocumentParseServiceImpl(SessionDocumentService documentService,
                                            KnowledgeChunkService chunkService,
-                                           ObjectProvider<RagEmbeddingStore> embeddingStoreProvider) {
+                                           ObjectProvider<RagEmbeddingStore> embeddingStoreProvider,
+                                           DocumentTextExtractor textExtractor) {
         this.documentService = documentService;
         this.chunkService = chunkService;
         this.embeddingStoreProvider = embeddingStoreProvider;
+        this.textExtractor = textExtractor;
     }
 
     @Override
@@ -98,13 +94,8 @@ public class SessionDocumentParseServiceImpl implements SessionDocumentParseServ
         String sourceName = document.getOriginalFileName() != null
                 ? document.getOriginalFileName()
                 : document.getFilePath();
-        String extension = FilenameUtils.getExtension(sourceName);
-        extension = extension == null ? "" : extension.toLowerCase(Locale.ROOT);
-        if (!TEXT_EXTENSIONS.contains(extension)) {
-            throw new UnsupportedOperationException("Unsupported document type: " + extension);
-        }
         Path path = resolveLocalPath(document.getFilePath());
-        return Files.readString(path, StandardCharsets.UTF_8);
+        return textExtractor.extract(path, sourceName);
     }
 
     private Path resolveLocalPath(String filePath) {

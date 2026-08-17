@@ -3,50 +3,47 @@ package com.tyh.chat.rag.document.service.impl;
 import com.tyh.chat.rag.chunk.domain.KnowledgeChunk;
 import com.tyh.chat.rag.chunk.service.KnowledgeChunkService;
 import com.tyh.chat.rag.document.domain.KnowledgeDocument;
+import com.tyh.chat.rag.document.extractor.DocumentTextExtractor;
 import com.tyh.chat.rag.document.service.KnowledgeDocumentParseService;
 import com.tyh.chat.rag.document.service.KnowledgeDocumentService;
 import com.tyh.chat.rag.embedding.store.RagEmbeddingStore;
 import com.tyh.common.config.ThinkChainConfig;
 import com.tyh.common.utils.file.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 
 /**
- * 知识库文本文件解析实现。
+ * 知识库文档解析和切片实现。
  *
- * <p>当前阶段只支持可直接按 UTF-8 读取的文本类文件，不支持 PDF、Word。
- * 文本按 1200 个字符切片，相邻切片重叠 120 个字符，重叠可以减少一句话刚好在边界被截断造成的信息丢失。</p>
+ * <p>DocumentTextExtractor 负责从文本、PDF 和 Office 文档中提取文字；本类负责更新处理状态、
+ * 清理旧切片并生成新切片。文本按 1200 个字符切片，相邻切片重叠 120 个字符，
+ * 重叠可以减少一句话刚好在边界被截断造成的信息丢失。</p>
  */
 @Service
 public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParseService {
 
     private static final int CHUNK_SIZE = 1200;
     private static final int CHUNK_OVERLAP = 120;
-    private static final Set<String> TEXT_EXTENSIONS = Set.of(
-            "txt", "md", "markdown", "csv", "json", "xml", "html", "htm",
-            "log", "sql", "java", "js", "ts", "css", "yml", "yaml", "properties");
-
     private final KnowledgeDocumentService documentService;
     private final KnowledgeChunkService chunkService;
     private final ObjectProvider<RagEmbeddingStore> embeddingStoreProvider;
+    private final DocumentTextExtractor textExtractor;
 
     public KnowledgeDocumentParseServiceImpl(KnowledgeDocumentService documentService,
                                              KnowledgeChunkService chunkService,
-                                             ObjectProvider<RagEmbeddingStore> embeddingStoreProvider) {
+                                             ObjectProvider<RagEmbeddingStore> embeddingStoreProvider,
+                                             DocumentTextExtractor textExtractor) {
         this.documentService = documentService;
         this.chunkService = chunkService;
         this.embeddingStoreProvider = embeddingStoreProvider;
+        this.textExtractor = textExtractor;
     }
 
     @Override
@@ -95,13 +92,8 @@ public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParse
 
     private String readText(KnowledgeDocument document) throws Exception {
         String sourceName = document.getFileName() != null ? document.getFileName() : document.getFilePath();
-        String extension = FilenameUtils.getExtension(sourceName);
-        extension = extension == null ? "" : extension.toLowerCase(Locale.ROOT);
-        if (!TEXT_EXTENSIONS.contains(extension)) {
-            throw new UnsupportedOperationException("Unsupported document type: " + extension);
-        }
         Path path = resolveLocalPath(document.getFilePath());
-        return Files.readString(path, StandardCharsets.UTF_8);
+        return textExtractor.extract(path, sourceName);
     }
 
     private Path resolveLocalPath(String filePath) {

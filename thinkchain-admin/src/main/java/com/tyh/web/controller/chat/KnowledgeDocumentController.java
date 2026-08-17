@@ -31,7 +31,7 @@ import org.springframework.web.multipart.MultipartFile;
  * 知识库文档的上传、查询、解析、切片查看和向量化接口。
  *
  * <p>上传完成后会依次执行解析、切片和向量化；embedding 接口保留为失败重试入口。
- * 当前仅支持文本类扩展名，不支持 PDF、Word。</p>
+ * 支持文本、PDF、Word、Excel 和 PowerPoint 文档。</p>
  */
 @Tag(name = "AI 知识文档")
 @RestController
@@ -72,7 +72,8 @@ public class KnowledgeDocumentController {
         return AjaxResult.success(document);
     }
 
-    @Operation(summary = "上传知识库文档", description = "上传知识库文档")
+    @Operation(summary = "上传知识库文档",
+            description = "支持文本、pdf、doc、docx、xls、xlsx、ppt、pptx；上传后自动解析、切片和向量化")
     @PostMapping("/knowledge-bases/{knowledgeBaseId}/documents/upload")
     public AjaxResult upload(@PathVariable String knowledgeBaseId,
                              @RequestParam("file") MultipartFile file) {
