@@ -32,13 +32,14 @@ public class JdbcRagEmbeddingStore implements RagEmbeddingStore {
         String scopeId = firstNonBlank(record.getScopeId(), "SESSION".equalsIgnoreCase(scopeType)
                 ? record.getConversationId()
                 : record.getKnowledgeBaseId());
-        // ON CONFLICT 使相同 ID 再次写入时执行更新，避免产生重复主键错误。
+        // chunk_id 在 Supabase 中具有唯一索引；同一切片重试时更新原记录，不产生重复向量。
         String sql = """
                 insert into rag_embedding (
                     id, scope_type, scope_id, knowledge_base_id, conversation_id, document_id,
                     chunk_id, embedding_model, content, embedding, metadata
                 ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, cast(? as vector), cast(? as jsonb))
-                on conflict (id) do update set
+                on conflict (chunk_id) do update set
+                    id = excluded.id,
                     scope_type = excluded.scope_type,
                     scope_id = excluded.scope_id,
                     knowledge_base_id = excluded.knowledge_base_id,

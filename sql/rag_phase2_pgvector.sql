@@ -1,10 +1,9 @@
 -- ThinkChain RAG phase 2 PostgreSQL pgvector tables
+-- 本脚本允许重复执行：不会删除已有向量数据。
 
 create extension if not exists vector;
 
-drop table if exists rag_embedding;
-
-create table rag_embedding (
+create table if not exists rag_embedding (
     id varchar(64) not null,
     scope_type varchar(20) not null,
     scope_id varchar(64) not null,
@@ -46,19 +45,32 @@ comment on column rag_embedding.metadata is '向量元数据JSON';
 
 comment on column rag_embedding.create_time is '创建时间';
 
-create index idx_rag_embedding_scope on rag_embedding (scope_type, scope_id);
+create index if not exists idx_rag_embedding_scope on rag_embedding (scope_type, scope_id);
 
-create index idx_rag_embedding_kb_id on rag_embedding (knowledge_base_id);
+create index if not exists idx_rag_embedding_kb_id on rag_embedding (knowledge_base_id);
 
-create index idx_rag_embedding_conversation_id on rag_embedding (conversation_id);
+create index if not exists idx_rag_embedding_conversation_id on rag_embedding (conversation_id);
 
-create index idx_rag_embedding_document_id on rag_embedding (document_id);
+create index if not exists idx_rag_embedding_document_id on rag_embedding (document_id);
 
-create index idx_rag_embedding_chunk_id on rag_embedding (chunk_id);
+-- 每个切片只允许有一条向量。若旧版本产生过重复数据，为每个 chunk_id 保留一条。
+delete from rag_embedding older
+using rag_embedding newer
+where older.chunk_id = newer.chunk_id
+  and older.ctid < newer.ctid;
 
-create index idx_rag_embedding_model on rag_embedding (embedding_model);
+drop index if exists idx_rag_embedding_chunk_id;
+create unique index if not exists uk_rag_embedding_chunk_id on rag_embedding (chunk_id);
 
-create index idx_rag_embedding_create_time on rag_embedding (create_time);
+create index if not exists idx_rag_embedding_model on rag_embedding (embedding_model);
 
-create index idx_rag_embedding_vector_cosine on rag_embedding using ivfflat (embedding vector_cosine_ops)
-with (lists = 100);
+create index if not exists idx_rag_embedding_create_time on rag_embedding (create_time);
+
+-- HNSW 可以在空表创建，后续写入数据时索引会自动维护；查询使用余弦距离 <=>。
+drop index if exists idx_rag_embedding_vector_cosine;
+create index if not exists idx_rag_embedding_vector_cosine_hnsw
+    on rag_embedding using hnsw (embedding vector_cosine_ops);
+
+-- rag_embedding 只供后端 JDBC 使用，不通过 Supabase Data API 暴露给前端角色。
+alter table rag_embedding enable row level security;
+revoke all on table rag_embedding from anon, authenticated;

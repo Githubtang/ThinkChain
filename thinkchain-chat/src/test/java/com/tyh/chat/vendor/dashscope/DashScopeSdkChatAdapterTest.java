@@ -1,7 +1,12 @@
 package com.tyh.chat.vendor.dashscope;
 
+import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationParam;
+import com.alibaba.dashscope.common.MultiModalMessage;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tyh.chat.chat.dto.ChatRequest;
 import com.tyh.chat.chat.dto.Content;
+import com.tyh.chat.chat.dto.Message;
+import com.tyh.chat.chat.dto.ModelCallOptions;
 import com.tyh.chat.model.ModelEntry;
 import org.junit.jupiter.api.Test;
 
@@ -72,10 +77,48 @@ class DashScopeSdkChatAdapterTest {
         assertThat(nativeBaseUrl).isEqualTo("https://workspace.example.com/api/v1");
     }
 
+    @Test
+    void requestKeepsRolesSystemPromptAndModelOptions() throws Exception {
+        ChatRequest request = new ChatRequest();
+        request.setSystemPrompt("你是项目助手");
+        request.setMessages(List.of(
+                message("user", "第一个问题"),
+                message("assistant", "上一次回答"),
+                message("user", "继续提问")));
+        ModelCallOptions options = new ModelCallOptions();
+        options.setTemperature(0.3D);
+        options.setTopP(0.8D);
+        options.setMaxTokens(2048);
+        request.setOptions(options);
+
+        MultiModalConversationParam param = new DashScopeSdkChatAdapter(new ObjectMapper())
+                .buildParam(MODEL, request, true);
+
+        List<String> roles = param.getMessages().stream()
+                .map(MultiModalMessage.class::cast)
+                .map(MultiModalMessage::getRole)
+                .toList();
+        assertThat(roles).containsExactly("system", "user", "assistant", "user");
+        assertThat(param.getTemperature()).isEqualTo(0.3F);
+        assertThat(param.getTopP()).isEqualTo(0.8D);
+        assertThat(param.getMaxTokens()).isEqualTo(2048);
+        assertThat(param.getIncrementalOutput()).isTrue();
+    }
+
     private static Content content(String type, String url) {
         Content content = new Content();
         content.setType(type);
         content.setUrl(url);
         return content;
+    }
+
+    private static Message message(String role, String text) {
+        Message message = new Message();
+        message.setRole(role);
+        Content content = new Content();
+        content.setType("text");
+        content.setText(text);
+        message.setContents(List.of(content));
+        return message;
     }
 }

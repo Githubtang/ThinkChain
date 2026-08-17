@@ -23,7 +23,7 @@ public class ChatFileValidator {
     private static final long MAX_FILE_SIZE = 10L * 1024 * 1024;
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
             "txt", "md", "markdown", "csv", "json", "xml", "html", "htm",
-            "log", "sql", "java", "js", "ts", "css", "yml", "yaml", "properties");
+            "log", "sql", "java", "js", "ts", "css", "yml", "yaml", "properties", "docx");
     private static final String[] ALLOWED_EXTENSION_ARRAY = ALLOWED_EXTENSIONS.toArray(String[]::new);
 
     public String upload(MultipartFile file) {

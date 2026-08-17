@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * {@link ChatService} 的主要实现，也是普通 AI 对话的业务编排中心。
@@ -49,6 +50,8 @@ import java.util.Set;
 public class AiChatService implements ChatService {
 
     private static final Logger log = LoggerFactory.getLogger(AiChatService.class);
+    private static final int MAX_HISTORY_MESSAGES = 20;
+    private static final int MAX_HISTORY_CHARS = 30_000;
 
     private final ModelRegistry modelRegistry;
     private final CapabilityValidator capabilityValidator;
@@ -76,6 +79,21 @@ public class AiChatService implements ChatService {
 
     @Override
     public AjaxResult chat(ChatRequest request, Set<String> requiredCapabilities) {
+        return execute(request, requiredCapabilities, null);
+    }
+
+    @Override
+    public AjaxResult chatStreaming(ChatRequest request, Set<String> requiredCapabilities,
+                                    Consumer<String> onDelta) {
+        if (onDelta == null) {
+            throw new IllegalArgumentException("onDelta must not be null");
+        }
+        return execute(request, requiredCapabilities, onDelta);
+    }
+
+    /** 普通和流式对话共用同一套校验、RAG、持久化及日志流程。 */
+    private AjaxResult execute(ChatRequest request, Set<String> requiredCapabilities,
+                               Consumer<String> onDelta) {
         long start = System.currentTimeMillis();
         ModelEntry model = null;
         ChatMessage assistantMessage = null;
@@ -98,14 +116,21 @@ public class AiChatService implements ChatService {
             required.addAll(ChatCapabilityDeriver.derive(request));
             capabilityValidator.validate(model, required);
 
-            // 4. 先尽力保存会话和用户消息。保存失败不会阻止模型回答。
+            // 4. 首次请求自动创建会话；继续会话时，在客户端只传本次问题的情况下自动恢复数据库历史。
+            boolean continuingConversation = request.getConversationId() != null
+                    && !request.getConversationId().isBlank();
             ChatConversation conversation = persistConversationQuietly(request);
+            ChatRequest conversationRequest = restoreConversationHistoryQuietly(
+                    request, conversation, continuingConversation);
+            // 只保存本次最后一条用户消息，避免客户端携带历史时重复入库。
             persistUserMessagesQuietly(request, conversation);
 
             // 5. 根据 provider 找厂商适配器；RAG 开启时先把检索资料加入模型请求。
             VendorChatAdapter adapter = vendorChatAdapterRegistry.getRequired(model.getProvider());
-            ChatRequest modelRequest = augmentWithRagQuietly(request);
-            VendorChatResult result = adapter.invoke(model, modelRequest);
+            ChatRequest modelRequest = augmentWithRagQuietly(conversationRequest);
+            VendorChatResult result = onDelta == null
+                    ? adapter.invoke(model, modelRequest)
+                    : adapter.stream(model, modelRequest, onDelta);
             long elapsedMs = System.currentTimeMillis() - start;
             assistantMessage = persistAssistantMessageQuietly(request, model, result);
 
@@ -174,15 +199,120 @@ public class AiChatService implements ChatService {
         if (conversation == null || request.getMessages() == null) {
             return;
         }
-        for (Message message : request.getMessages()) {
+        for (int i = request.getMessages().size() - 1; i >= 0; i--) {
+            Message message = request.getMessages().get(i);
             if (message != null && "user".equalsIgnoreCase(message.getRole())) {
                 try {
                     conversationService.saveUserMessage(conversation.getId(), request.getModel(), message);
                 } catch (Exception e) {
                     log.warn("Failed to persist user message; continuing chat call: {}", e.getMessage());
                 }
+                return;
             }
         }
+    }
+
+    /**
+     * 继续已有会话且请求只包含本次用户消息时，自动从数据库补入最近历史。
+     * 若客户端已经传入 assistant 或多条 user 消息，则视为客户端已提供历史，不再重复拼接。
+     */
+    private ChatRequest restoreConversationHistoryQuietly(ChatRequest request, ChatConversation conversation,
+                                                          boolean continuingConversation) {
+        if (!continuingConversation || conversation == null || hasClientHistory(request)) {
+            return request;
+        }
+        try {
+            List<ChatMessage> stored = conversationService.listMessages(conversation.getId());
+            if (stored == null || stored.isEmpty()) {
+                return request;
+            }
+            List<Message> history = selectRecentHistory(stored);
+            if (history.isEmpty()) {
+                return request;
+            }
+            ChatRequest target = copyRequest(request);
+            List<Message> merged = new ArrayList<>(history);
+            merged.addAll(request.getMessages());
+            target.setMessages(merged);
+            if ((target.getSystemPrompt() == null || target.getSystemPrompt().isBlank())
+                    && conversation.getSystemPrompt() != null) {
+                target.setSystemPrompt(conversation.getSystemPrompt());
+            }
+            return target;
+        } catch (Exception exception) {
+            log.warn("Failed to restore conversation history; continuing with current request: {}",
+                    exception.getMessage());
+            return request;
+        }
+    }
+
+    /** 判断请求中是否已经包含由客户端提供的历史上下文。 */
+    private static boolean hasClientHistory(ChatRequest request) {
+        int userCount = 0;
+        if (request.getMessages() != null) {
+            for (Message message : request.getMessages()) {
+                if (message == null || message.getRole() == null) {
+                    continue;
+                }
+                if ("assistant".equalsIgnoreCase(message.getRole())) {
+                    return true;
+                }
+                if ("user".equalsIgnoreCase(message.getRole()) && ++userCount > 1) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** 从后往前选择最近消息，同时限制消息数量和字符数，避免历史无限增长。 */
+    private static List<Message> selectRecentHistory(List<ChatMessage> stored) {
+        List<Message> reversed = new ArrayList<>();
+        int chars = 0;
+        for (int i = stored.size() - 1; i >= 0 && reversed.size() < MAX_HISTORY_MESSAGES; i--) {
+            ChatMessage source = stored.get(i);
+            if (source == null || source.getRole() == null) {
+                continue;
+            }
+            String text = source.getContent();
+            if ((text == null || text.isBlank()) && source.getRawContent() != null) {
+                text = source.getRawContent();
+            }
+            if (text == null || text.isBlank()) {
+                continue;
+            }
+            if (!reversed.isEmpty() && chars + text.length() > MAX_HISTORY_CHARS) {
+                break;
+            }
+            Message message = new Message();
+            message.setRole(source.getRole());
+            Content content = new Content();
+            content.setType("text");
+            content.setText(text);
+            message.setContents(List.of(content));
+            reversed.add(message);
+            chars += text.length();
+        }
+        java.util.Collections.reverse(reversed);
+        return reversed;
+    }
+
+    /** 复制请求基础字段，避免给模型补历史时修改控制器收到的原始请求。 */
+    private static ChatRequest copyRequest(ChatRequest source) {
+        ChatRequest target = new ChatRequest();
+        target.setConversationId(source.getConversationId());
+        target.setUserId(source.getUserId());
+        target.setModel(source.getModel());
+        target.setSystemPrompt(source.getSystemPrompt());
+        target.setMessages(source.getMessages());
+        target.setOptions(source.getOptions());
+        target.setStream(source.getStream());
+        target.setRagEnabled(source.getRagEnabled());
+        target.setKnowledgeBaseIds(source.getKnowledgeBaseIds());
+        target.setSessionDocumentIds(source.getSessionDocumentIds());
+        target.setRagTopK(source.getRagTopK());
+        target.setRagMode(source.getRagMode());
+        return target;
     }
 
     private ChatMessage persistAssistantMessageQuietly(ChatRequest request, ModelEntry model, VendorChatResult result) {

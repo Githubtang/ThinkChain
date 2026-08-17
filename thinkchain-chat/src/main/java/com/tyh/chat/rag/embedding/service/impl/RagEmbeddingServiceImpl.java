@@ -9,8 +9,8 @@ import com.tyh.chat.rag.embedding.store.RagEmbeddingStore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * 文档切片向量化的业务实现。
@@ -40,17 +40,16 @@ public class RagEmbeddingServiceImpl implements RagEmbeddingService {
         if (embeddingStore == null) {
             throw new IllegalStateException("RagEmbeddingStore is unavailable; check vector datasource config");
         }
-        // 只处理 PENDING，已经成功向量化的切片不会重复调用收费的外部模型接口。
-        KnowledgeChunk query = new KnowledgeChunk();
-        query.setDocumentId(documentId);
-        query.setEmbeddingStatus("PENDING");
-        List<KnowledgeChunk> chunks = chunkService.list(query);
+        // 同时处理首次任务 PENDING 和上次失败的 FAILED；COMPLETED 不重复调用收费接口。
+        List<KnowledgeChunk> chunks = new ArrayList<>();
+        chunks.addAll(listByStatus(documentId, "PENDING"));
+        chunks.addAll(listByStatus(documentId, "FAILED"));
         int successCount = 0;
         for (KnowledgeChunk chunk : chunks) {
             try {
-                // 每个切片单独生成向量和 vectorId，便于单条重试、更新或删除。
+                // 使用 chunkId 作为稳定 vectorId，重试时执行更新而不是插入重复向量。
                 float[] embedding = embeddingClient.embed(chunk.getContent());
-                String vectorId = UUID.randomUUID().toString();
+                String vectorId = chunk.getId();
                 RagEmbeddingRecord record = new RagEmbeddingRecord();
                 record.setId(vectorId);
                 record.setScopeType(chunk.getScopeType());
@@ -76,5 +75,13 @@ public class RagEmbeddingServiceImpl implements RagEmbeddingService {
             }
         }
         return successCount;
+    }
+
+    /** 查询一个文档下指定向量化状态的切片。 */
+    private List<KnowledgeChunk> listByStatus(String documentId, String status) {
+        KnowledgeChunk query = new KnowledgeChunk();
+        query.setDocumentId(documentId);
+        query.setEmbeddingStatus(status);
+        return chunkService.list(query);
     }
 }

@@ -30,7 +30,7 @@ import org.springframework.web.multipart.MultipartFile;
 /**
  * 知识库文档的上传、查询、解析、切片查看和向量化接口。
  *
- * <p>上传完成后会立即解析文本并生成 PENDING 切片；调用 embedding 接口后，切片才会转换成向量写入 Supabase。
+ * <p>上传完成后会依次执行解析、切片和向量化；embedding 接口保留为失败重试入口。
  * 当前仅支持文本类扩展名，不支持 PDF、Word。</p>
  */
 @Tag(name = "AI 知识文档")
@@ -96,7 +96,8 @@ public class KnowledgeDocumentController {
             throw new ServiceException("文档解析失败", HttpStatus.BAD_REQUEST)
                     .setDetailMessage(parsed.getErrorMessage());
         }
-        return AjaxResult.success(parsed);
+        embedAndUpdateStatus(parsed);
+        return AjaxResult.success(documentService.getById(document.getId()));
     }
 
     @Operation(summary = "查询文档列表", description = "查询文档列表")
@@ -160,7 +161,40 @@ public class KnowledgeDocumentController {
     @PostMapping("/documents/{documentId}/embedding")
     public AjaxResult embedding(@PathVariable String documentId) {
         // 向量化前再次检查文档归属，防止用户通过猜测 documentId 处理他人资料。
-        accessService.requireKnowledgeDocument(documentId);
-        return AjaxResult.success(embeddingService.embedDocument(documentId));
+        KnowledgeDocument document = accessService.requireKnowledgeDocument(documentId);
+        return AjaxResult.success(embedAndUpdateStatus(document));
+    }
+
+    /** 执行向量化并根据剩余失败切片更新文档总体状态。 */
+    private int embedAndUpdateStatus(KnowledgeDocument document) {
+        document.setStatus("EMBEDDING");
+        document.setErrorMessage(null);
+        documentService.update(document);
+        try {
+            int successCount = embeddingService.embedDocument(document.getId());
+            boolean hasRemaining = hasChunksWithStatus(document.getId(), "PENDING")
+                    || hasChunksWithStatus(document.getId(), "FAILED");
+            document.setStatus(hasRemaining ? "FAILED" : "READY");
+            document.setErrorMessage(hasRemaining ? "部分切片向量化失败，可重新调用 embedding 接口重试" : null);
+            documentService.update(document);
+            return successCount;
+        } catch (Exception exception) {
+            document.setStatus("FAILED");
+            document.setErrorMessage(exception.getMessage());
+            documentService.update(document);
+            if (exception instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new ServiceException("文档向量化失败", HttpStatus.ERROR)
+                    .setDetailMessage(exception.getMessage());
+        }
+    }
+
+    /** 判断文档是否还有指定状态的切片。 */
+    private boolean hasChunksWithStatus(String documentId, String status) {
+        KnowledgeChunk query = new KnowledgeChunk();
+        query.setDocumentId(documentId);
+        query.setEmbeddingStatus(status);
+        return !chunkService.list(query).isEmpty();
     }
 }

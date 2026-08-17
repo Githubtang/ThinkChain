@@ -27,7 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 /**
  * 当前会话临时文档接口。
  *
- * <p>这类文档只服务于一个 conversationId，不进入长期知识库。
+ * <p>这类文档只服务于一个 conversationId，不进入长期知识库。上传后会自动完成解析、切片和向量化；
  * RAG 请求使用会话文档时，后端会同时检查用户归属和会话归属。</p>
  */
 @Tag(name = "AI 会话文档")
@@ -86,7 +86,8 @@ public class SessionDocumentController {
             throw new ServiceException("文档解析失败", HttpStatus.BAD_REQUEST)
                     .setDetailMessage(parsed.getErrorMessage());
         }
-        return AjaxResult.success(parsed);
+        embedAndUpdateStatus(parsed);
+        return AjaxResult.success(documentService.getById(document.getId()));
     }
 
     @Operation(summary = "查询会话文档列表", description = "查询会话文档列表")
@@ -120,8 +121,8 @@ public class SessionDocumentController {
     @Operation(summary = "向量化会话文档切片", description = "向量化会话文档切片")
     @PostMapping("/session-documents/{documentId}/embedding")
     public AjaxResult embedding(@PathVariable String documentId) {
-        accessService.requireSessionDocument(documentId);
-        return AjaxResult.success(embeddingService.embedDocument(documentId));
+        SessionDocument document = accessService.requireSessionDocument(documentId);
+        return AjaxResult.success(embedAndUpdateStatus(document));
     }
 
     @Operation(summary = "删除会话文档", description = "删除会话文档")
@@ -130,5 +131,38 @@ public class SessionDocumentController {
         // 删除服务统一清理 Supabase 向量、主库切片/元数据和磁盘文件。
         SessionDocument document = accessService.requireSessionDocument(documentId);
         return AjaxResult.success(deletionService.deleteSessionDocument(document));
+    }
+
+    /** 执行向量化并根据剩余失败切片更新会话文档总体状态。 */
+    private int embedAndUpdateStatus(SessionDocument document) {
+        document.setParseStatus("EMBEDDING");
+        document.setErrorMessage(null);
+        documentService.update(document);
+        try {
+            int successCount = embeddingService.embedDocument(document.getId());
+            boolean hasRemaining = hasChunksWithStatus(document.getId(), "PENDING")
+                    || hasChunksWithStatus(document.getId(), "FAILED");
+            document.setParseStatus(hasRemaining ? "FAILED" : "READY");
+            document.setErrorMessage(hasRemaining ? "部分切片向量化失败，可重新调用 embedding 接口重试" : null);
+            documentService.update(document);
+            return successCount;
+        } catch (Exception exception) {
+            document.setParseStatus("FAILED");
+            document.setErrorMessage(exception.getMessage());
+            documentService.update(document);
+            if (exception instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new ServiceException("文档向量化失败", HttpStatus.ERROR)
+                    .setDetailMessage(exception.getMessage());
+        }
+    }
+
+    /** 判断文档是否还有指定状态的切片。 */
+    private boolean hasChunksWithStatus(String documentId, String status) {
+        KnowledgeChunk query = new KnowledgeChunk();
+        query.setDocumentId(documentId);
+        query.setEmbeddingStatus(status);
+        return !chunkService.list(query).isEmpty();
     }
 }

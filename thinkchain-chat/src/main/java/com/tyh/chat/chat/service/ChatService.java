@@ -4,6 +4,7 @@ import com.tyh.chat.chat.dto.ChatRequest;
 import com.tyh.common.core.domain.AjaxResult;
 
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * AI 对话应用服务。
@@ -39,4 +40,10 @@ public interface ChatService {
      * @return 统一接口结果
      */
     AjaxResult chat(String modelName, String userInput, Set<String> requiredCapabilities);
+
+    /**
+     * 执行完整聊天业务链，同时把厂商流式返回的新文本片段交给 onDelta。
+     * 会话、消息和日志仍在流式结束后统一保存。
+     */
+    AjaxResult chatStreaming(ChatRequest request, Set<String> requiredCapabilities, Consumer<String> onDelta);
 }

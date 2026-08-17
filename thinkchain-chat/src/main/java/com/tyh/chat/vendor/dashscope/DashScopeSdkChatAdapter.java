@@ -17,6 +17,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tyh.chat.chat.dto.ChatRequest;
 import com.tyh.chat.chat.dto.Content;
 import com.tyh.chat.chat.dto.Message;
+import com.tyh.chat.chat.dto.ModelCallOptions;
 import com.tyh.chat.model.ModelEntry;
 import com.tyh.chat.vendor.VendorChatAdapter;
 import com.tyh.chat.vendor.VendorChatResult;
@@ -34,13 +35,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * 阿里云 DashScope 官方 Java SDK 适配器：通过 {@link MultiModalConversation} 调用多模态对话，
  * 将统一 {@link com.tyh.chat.chat.dto.ChatRequest} 转为 {@link MultiModalMessage}。
  *
- * <p>当前实现会把历史消息整理成文本前缀，把最后一条 user 消息保留为多模态片段。
- * ModelCallOptions 暂未映射到 SDK 参数，后续若需要 temperature、topP 等参数，应在构造 param 时补充。</p>
+ * <p>当前实现会保留 system、user、assistant 的消息角色，并把 temperature、topP、maxTokens
+ * 映射到 DashScope SDK。视频直接作为 video 内容读取，音频先通过 Paraformer 转写。</p>
  *
  * @Author: GithubTang
  * @Description: DashScope 官方 SDK 多模态对话适配实现
@@ -81,12 +84,7 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
         }
 
         // 领域 DTO 不能直接传给厂商 SDK，需要先转换成 DashScope 的消息结构。
-        MultiModalMessage userMessage = buildUserMultiModalMessage(model, messages);
-        MultiModalConversationParam param = MultiModalConversationParam.builder()
-                .apiKey(model.getApiKey())
-                .model(model.getModelName())
-                .message(userMessage)
-                .build();
+        MultiModalConversationParam param = buildParam(model, request, false);
 
         // 真正的外部网络调用发生在 conv.call；网络、鉴权或模型错误会向上抛给 AiChatService 统一处理。
         // 多模态 SDK 使用原生 /api/v1 地址，不能直接使用配置中的 /compatible-mode/v1 地址。
@@ -98,74 +96,102 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
             log.warn("DashScope 返回空文本, model={}", model.getName());
         }
         // 返回统一结果，避免上层代码依赖 DashScope 的 MultiModalConversationResult 类型。
-        VendorChatResult chatResult = VendorChatResult.of(text != null ? text : "");
-        chatResult.setRawResponse(result != null ? result.toString() : null);
-        return chatResult;
+        return toVendorResult(text, result);
     }
 
     /**
-     * 将多条消息折叠为一条 user 多模态消息：此前的对话拼成前置文本，最后一条 user 的多模态片段接在后面。
+     * 使用 DashScope SDK streamCall 获取真正的增量数据块。
+     * incrementalOutput=true 后，每次回调只包含本次新生成的文字。
      */
-    private MultiModalMessage buildUserMultiModalMessage(ModelEntry model, List<Message> messages) throws Exception {
-        int lastUserIndex = -1;
-        for (int i = messages.size() - 1; i >= 0; i--) {
-            Message m = messages.get(i);
-            if (m != null && m.getRole() != null && "user".equalsIgnoreCase(m.getRole().trim())) {
-                lastUserIndex = i;
-                break;
+    @Override
+    public VendorChatResult stream(ModelEntry model, ChatRequest request,
+                                   Consumer<String> onDelta) throws Exception {
+        Objects.requireNonNull(onDelta, "onDelta");
+        MultiModalConversationParam param = buildParam(model, request, true);
+        MultiModalConversation conversation = new MultiModalConversation(
+                Protocol.HTTP.getValue(), nativeApiBaseUrl(model.getBaseUrl()));
+        StringBuilder fullText = new StringBuilder();
+        AtomicReference<MultiModalConversationResult> lastResult = new AtomicReference<>();
+        conversation.streamCall(param).blockingForEach(result -> {
+            lastResult.set(result);
+            String delta = extractAssistantText(result);
+            if (delta != null && !delta.isEmpty()) {
+                fullText.append(delta);
+                onDelta.accept(delta);
             }
+        });
+        if (lastResult.get() == null) {
+            throw new IllegalStateException("DashScope 流式调用没有返回任何结果");
         }
-        if (lastUserIndex < 0) {
-            throw new IllegalArgumentException("至少需要一条 role=user 的消息");
-        }
-
-        StringBuilder prefix = new StringBuilder();
-        for (int i = 0; i < lastUserIndex; i++) {
-            Message m = messages.get(i);
-            if (m == null || m.getRole() == null) {
-                continue;
-            }
-            String line = flattenTextOnly(m);
-            if (!line.isBlank()) {
-                prefix.append(m.getRole().trim()).append(": ").append(line).append('\n');
-            }
-        }
-
-        List<Map<String, Object>> parts = new ArrayList<>();
-        if (!prefix.isEmpty()) {
-            parts.add(part("text", prefix.toString()));
-        }
-        Message lastUser = messages.get(lastUserIndex);
-        List<Content> contents = lastUser.getContents();
-        if (contents == null || contents.isEmpty()) {
-            parts.add(part("text", ""));
-        } else {
-            for (Content c : contents) {
-                parts.addAll(toDashScopeContentParts(model, c));
-            }
-        }
-
-        return MultiModalMessage.builder()
-                .role("user")
-                .content(parts)
-                .build();
+        return toVendorResult(fullText.toString(), lastResult.get());
     }
 
-    /** 仅从消息中提取 type=text 的片段拼接为纯文本（用于历史上下文前缀）。 */
-    private static String flattenTextOnly(Message m) {
-        if (m.getContents() == null) {
-            return "";
+    /**
+     * 构造 DashScope 请求参数，并根据普通/流式调用决定是否开启增量输出。
+     */
+    MultiModalConversationParam buildParam(ModelEntry model, ChatRequest request,
+                                           boolean incrementalOutput) throws Exception {
+        var builder = MultiModalConversationParam.builder()
+                .apiKey(model.getApiKey())
+                .model(model.getModelName())
+                .messages(buildMultiModalMessages(model, request))
+                .incrementalOutput(incrementalOutput);
+
+        ModelCallOptions options = request.getOptions();
+        if (options != null) {
+            if (options.getTemperature() != null) {
+                builder.temperature(options.getTemperature().floatValue());
+            }
+            if (options.getTopP() != null) {
+                builder.topP(options.getTopP());
+            }
+            if (options.getMaxTokens() != null) {
+                builder.maxTokens(options.getMaxTokens());
+            }
         }
-        StringBuilder sb = new StringBuilder();
-        for (Content c : m.getContents()) {
-            if (c == null || c.getType() == null) {
+        return builder.build();
+    }
+
+    /** 把统一消息列表转换成 DashScope 消息列表，并保留每一条消息的真实角色。 */
+    private List<MultiModalMessage> buildMultiModalMessages(ModelEntry model, ChatRequest request) throws Exception {
+        List<MultiModalMessage> result = new ArrayList<>();
+        if (request.getSystemPrompt() != null && !request.getSystemPrompt().isBlank()) {
+            result.add(MultiModalMessage.builder()
+                    .role("system")
+                    .content(List.of(part("text", request.getSystemPrompt().trim())))
+                    .build());
+        }
+
+        for (Message message : request.getMessages()) {
+            if (message == null || message.getRole() == null) {
                 continue;
             }
-            if ("text".equalsIgnoreCase(c.getType().trim()) && c.getText() != null) {
-                sb.append(c.getText());
+            List<Map<String, Object>> parts = new ArrayList<>();
+            if (message.getContents() == null || message.getContents().isEmpty()) {
+                parts.add(part("text", ""));
+            } else {
+                for (Content content : message.getContents()) {
+                    parts.addAll(toDashScopeContentParts(model, content));
+                }
             }
+            result.add(MultiModalMessage.builder()
+                    .role(normalizeRole(message.getRole()))
+                    .content(parts)
+                    .build());
         }
-        return sb.toString();
+        if (result.stream().noneMatch(message -> "user".equals(message.getRole()))) {
+            throw new IllegalArgumentException("至少需要一条 role=user 的消息");
+        }
+        return result;
+    }
+
+    /** DashScope 只接受 system、user、assistant 三种对话角色。 */
+    private static String normalizeRole(String role) {
+        String normalized = role == null ? "" : role.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "system", "user", "assistant" -> normalized;
+            default -> throw new IllegalArgumentException("不支持的 message.role: " + role);
+        };
     }
 
     /**
@@ -375,6 +401,17 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
             return second;
         }
         return null;
+    }
+
+    /** 把 DashScope 结果转换为项目统一结果，并提取 Token 用量。 */
+    private static VendorChatResult toVendorResult(String text, MultiModalConversationResult result) {
+        VendorChatResult chatResult = VendorChatResult.of(text != null ? text : "");
+        chatResult.setRawResponse(result != null ? result.toString() : null);
+        if (result != null && result.getUsage() != null) {
+            chatResult.setPromptTokens(result.getUsage().getInputTokens());
+            chatResult.setCompletionTokens(result.getUsage().getOutputTokens());
+        }
+        return chatResult;
     }
 
     /** 从 SDK 返回结果中解析助手文本（聚合 content 中 {@code text} 字段）。 */

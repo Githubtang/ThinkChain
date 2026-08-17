@@ -3,6 +3,8 @@ package com.tyh.chat.vendor;
 import com.tyh.chat.chat.dto.ChatRequest;
 import com.tyh.chat.model.ModelEntry;
 
+import java.util.function.Consumer;
+
 /**
  * 厂商聊天适配器：把项目统一的对话请求转换为某个模型厂商能够理解的 SDK 请求。
  *
@@ -32,4 +34,19 @@ public interface VendorChatAdapter {
      * @throws Exception SDK 或网络异常
      */
     VendorChatResult invoke(ModelEntry model, ChatRequest request) throws Exception;
+
+    /**
+     * 执行流式调用，并把模型新生成的文本片段逐段交给 onDelta。
+     *
+     * <p>不支持原生流式的厂商默认退化为一次完整输出；DashScope 适配器会覆盖此方法，
+     * 使用官方 SDK 的 streamCall 实现真正增量输出。</p>
+     */
+    default VendorChatResult stream(ModelEntry model, ChatRequest request,
+                                    Consumer<String> onDelta) throws Exception {
+        VendorChatResult result = invoke(model, request);
+        if (result.getContent() != null && !result.getContent().isEmpty()) {
+            onDelta.accept(result.getContent());
+        }
+        return result;
+    }
 }
