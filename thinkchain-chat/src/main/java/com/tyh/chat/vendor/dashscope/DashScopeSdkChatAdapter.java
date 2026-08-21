@@ -82,11 +82,6 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
                 .build();
     }
 
-    /** 单元测试使用的便捷构造器，生产环境由 Spring 注入上面的完整配置。 */
-    DashScopeSdkChatAdapter(ObjectMapper objectMapper) {
-        this(objectMapper, new DashScopeClientProperties(), new RestTemplateBuilder());
-    }
-
     @Override
     public String providerId() {
         return "dashscope";

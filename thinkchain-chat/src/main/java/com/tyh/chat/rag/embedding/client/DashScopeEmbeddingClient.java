@@ -36,12 +36,6 @@ public class DashScopeEmbeddingClient implements EmbeddingClient {
                 .build();
     }
 
-    /** 测试时允许传入绑定 MockRestServiceServer 的 RestTemplate。 */
-    DashScopeEmbeddingClient(RagEmbeddingProperties properties, RestTemplate restTemplate) {
-        this.properties = properties;
-        this.restTemplate = restTemplate;
-    }
-
     @Override
     public String modelName() {
         return properties.getModelName();
