@@ -1,12 +1,16 @@
 package com.tyh.chat.rag.embedding.client;
 
 import com.tyh.chat.rag.embedding.config.RagEmbeddingProperties;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
@@ -22,10 +26,20 @@ public class DashScopeEmbeddingClient implements EmbeddingClient {
     private static final String EMBEDDING_PATH = "/api/v1/services/embeddings/text-embedding/text-embedding";
 
     private final RagEmbeddingProperties properties;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate;
 
-    public DashScopeEmbeddingClient(RagEmbeddingProperties properties) {
+    public DashScopeEmbeddingClient(RagEmbeddingProperties properties, RestTemplateBuilder builder) {
         this.properties = properties;
+        this.restTemplate = builder
+                .connectTimeout(Duration.ofMillis(Math.max(1, properties.getConnectTimeoutMs())))
+                .readTimeout(Duration.ofMillis(Math.max(1, properties.getReadTimeoutMs())))
+                .build();
+    }
+
+    /** 测试时允许传入绑定 MockRestServiceServer 的 RestTemplate。 */
+    DashScopeEmbeddingClient(RagEmbeddingProperties properties, RestTemplate restTemplate) {
+        this.properties = properties;
+        this.restTemplate = restTemplate;
     }
 
     @Override
@@ -49,9 +63,33 @@ public class DashScopeEmbeddingClient implements EmbeddingClient {
                 "input", Map.of("texts", List.of(text != null ? text : "")),
                 "parameters", Map.of("dimension", properties.getDimensions())
         );
-        @SuppressWarnings("unchecked")
-        Map<String, Object> response = restTemplate.postForObject(url, new HttpEntity<>(body, headers), Map.class);
-        return extractEmbedding(response);
+        int maxAttempts = Math.max(1, properties.getMaxRetries() + 1);
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> response = restTemplate.postForObject(
+                        url, new HttpEntity<>(body, headers), Map.class);
+                float[] vector = extractEmbedding(response);
+                int expectedDimensions = properties.getDimensions() != null ? properties.getDimensions() : 0;
+                if (expectedDimensions > 0 && vector.length != expectedDimensions) {
+                    throw new IllegalStateException("DashScope embedding dimensions mismatch: expected "
+                            + expectedDimensions + ", actual " + vector.length);
+                }
+                return vector;
+            } catch (RestClientResponseException exception) {
+                int status = exception.getStatusCode().value();
+                if (attempt == maxAttempts || (status != 429 && status < 500)) {
+                    throw exception;
+                }
+                waitBeforeRetry(attempt);
+            } catch (ResourceAccessException exception) {
+                if (attempt == maxAttempts) {
+                    throw exception;
+                }
+                waitBeforeRetry(attempt);
+            }
+        }
+        throw new IllegalStateException("DashScope embedding request failed");
     }
 
     @SuppressWarnings("unchecked")
@@ -96,5 +134,15 @@ public class DashScopeEmbeddingClient implements EmbeddingClient {
             result = result.substring(0, result.length() - 1);
         }
         return result;
+    }
+
+    /** 对临时网络错误做短暂退避；线程被取消时立即停止，不吞掉中断信号。 */
+    private void waitBeforeRetry(int attempt) {
+        try {
+            Thread.sleep(Math.max(0L, properties.getRetryDelayMs()) * attempt);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Embedding retry interrupted", exception);
+        }
     }
 }

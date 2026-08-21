@@ -24,7 +24,8 @@ create table if not exists chat_message (
     create_time datetime null comment '创建时间',
     primary key (id),
     index idx_chat_message_conversation_id (conversation_id),
-    index idx_chat_message_create_time (create_time)
+    index idx_chat_message_create_time (create_time),
+    index idx_chat_message_conversation_time (conversation_id, create_time, id)
 ) engine=innodb default charset=utf8mb4 collate=utf8mb4_unicode_ci comment='AI聊天消息表';
 
 create table if not exists model_call_log (

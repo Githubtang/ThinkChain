@@ -66,10 +66,28 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="title != null">title = #{title},</if>
             <if test="status != null and status != ''">status = #{status},</if>
             <if test="chunkCount != null">chunk_count = #{chunkCount},</if>
-            <if test="errorMessage != null">error_message = #{errorMessage},</if>
+            error_message = #{errorMessage},
             update_time = sysdate()
         </set>
         where id = #{id}
+    </update>
+
+    <update id="claimKnowledgeDocumentProcessing" parameterType="String">
+        update knowledge_document
+        set status = 'PARSING', error_message = null, update_time = sysdate()
+        where id = #{id} and status in ('UPLOADED', 'PENDING', 'FAILED')
+    </update>
+
+    <update id="requestKnowledgeDocumentProcessing" parameterType="String">
+        update knowledge_document
+        set status = 'PENDING', error_message = null, update_time = sysdate()
+        where id = #{id} and status in ('READY', 'COMPLETED', 'FAILED')
+    </update>
+
+    <update id="resetInterruptedKnowledgeDocumentProcessing">
+        update knowledge_document
+        set status = 'PENDING', error_message = '应用上次退出时任务中断，已自动重新排队', update_time = sysdate()
+        where status in ('PARSING', 'CHUNKING', 'EMBEDDING')
     </update>
 
     <delete id="deleteKnowledgeDocumentById" parameterType="String">

@@ -7,6 +7,8 @@ import com.tyh.chat.rag.log.service.RagQueryLogService;
 import com.tyh.chat.security.ChatAccessService;
 import com.tyh.chat.validation.ChatRequestValidator;
 import com.tyh.common.core.domain.AjaxResult;
+import com.tyh.common.core.controller.BaseController;
+import com.tyh.common.core.page.TableDataInfo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -27,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "AI RAG 对话")
 @RestController
 @RequestMapping("/ai/rag")
-public class RagChatController {
+public class RagChatController extends BaseController {
 
     private final RagChatService ragChatService;
     private final RagQueryLogService queryLogService;
@@ -65,8 +67,9 @@ public class RagChatController {
 
     @Operation(summary = "查询 RAG 检索日志", description = "查询 RAG 检索日志")
     @GetMapping("/query-logs")
-    public AjaxResult logs(RagQueryLog query) {
+    public TableDataInfo logs(RagQueryLog query) {
         query.setUserId(accessService.currentUserId());
-        return AjaxResult.success(queryLogService.list(query));
+        startPage();
+        return getDataTable(queryLogService.list(query));
     }
 }

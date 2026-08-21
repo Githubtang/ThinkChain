@@ -22,5 +22,8 @@ public interface ChatConversationMapper {
 
     int updateChatConversation(ChatConversation conversation);
 
+    /** 保存新消息后只刷新会话更新时间，使最近活跃会话排在列表前面。 */
+    int touchChatConversation(String id);
+
     int deleteChatConversationById(String id);
 }

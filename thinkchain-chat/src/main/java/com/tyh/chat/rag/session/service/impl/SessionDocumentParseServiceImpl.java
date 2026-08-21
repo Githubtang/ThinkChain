@@ -3,6 +3,7 @@ package com.tyh.chat.rag.session.service.impl;
 import com.tyh.chat.rag.chunk.domain.KnowledgeChunk;
 import com.tyh.chat.rag.chunk.service.KnowledgeChunkService;
 import com.tyh.chat.rag.document.extractor.DocumentTextExtractor;
+import com.tyh.chat.rag.document.service.DocumentChunker;
 import com.tyh.chat.rag.embedding.store.RagEmbeddingStore;
 import com.tyh.chat.rag.session.domain.SessionDocument;
 import com.tyh.chat.rag.session.service.SessionDocumentParseService;
@@ -12,11 +13,7 @@ import com.tyh.common.utils.file.FileUtils;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 
 /**
@@ -28,21 +25,22 @@ import java.util.List;
 @Service
 public class SessionDocumentParseServiceImpl implements SessionDocumentParseService {
 
-    private static final int CHUNK_SIZE = 1200;
-    private static final int CHUNK_OVERLAP = 120;
     private final SessionDocumentService documentService;
     private final KnowledgeChunkService chunkService;
     private final ObjectProvider<RagEmbeddingStore> embeddingStoreProvider;
     private final DocumentTextExtractor textExtractor;
+    private final DocumentChunker chunker;
 
     public SessionDocumentParseServiceImpl(SessionDocumentService documentService,
                                            KnowledgeChunkService chunkService,
                                            ObjectProvider<RagEmbeddingStore> embeddingStoreProvider,
-                                           DocumentTextExtractor textExtractor) {
+                                           DocumentTextExtractor textExtractor,
+                                           DocumentChunker chunker) {
         this.documentService = documentService;
         this.chunkService = chunkService;
         this.embeddingStoreProvider = embeddingStoreProvider;
         this.textExtractor = textExtractor;
+        this.chunker = chunker;
     }
 
     @Override
@@ -55,7 +53,7 @@ public class SessionDocumentParseServiceImpl implements SessionDocumentParseServ
         try {
             mark(document, "PARSING", null, null, null);
             String text = readText(document);
-            List<String> chunks = splitText(text);
+            List<DocumentChunker.Chunk> chunks = chunker.split(text, document.getOriginalFileName());
             if (chunks.isEmpty()) {
                 throw new IllegalArgumentException("Document text is empty");
             }
@@ -64,9 +62,10 @@ public class SessionDocumentParseServiceImpl implements SessionDocumentParseServ
             chunkService.deleteByDocumentId(document.getId());
             int tokenCount = 0;
             for (int i = 0; i < chunks.size(); i++) {
-                String content = chunks.get(i);
+                DocumentChunker.Chunk parsedChunk = chunks.get(i);
+                String content = parsedChunk.content();
                 // Token 数用于粗略衡量上下文大小，目前采用字符数除以 4 的近似算法。
-                int chunkTokens = estimateTokens(content);
+                int chunkTokens = chunker.estimateTokens(content);
                 tokenCount += chunkTokens;
                 KnowledgeChunk chunk = new KnowledgeChunk();
                 chunk.setScopeType("SESSION");
@@ -75,14 +74,16 @@ public class SessionDocumentParseServiceImpl implements SessionDocumentParseServ
                 chunk.setDocumentId(document.getId());
                 chunk.setChunkIndex(i);
                 chunk.setContent(content);
-                chunk.setContentHash(sha256(content));
+                chunk.setContentHash(chunker.sha256(content));
                 chunk.setTokenCount(chunkTokens);
                 chunk.setCharCount(content.length());
-                chunk.setSectionTitle(document.getOriginalFileName());
+                chunk.setPageNumber(parsedChunk.pageNumber());
+                chunk.setSectionTitle(parsedChunk.sectionTitle());
                 chunk.setEmbeddingStatus("PENDING");
                 chunkService.create(chunk);
             }
-            mark(document, "READY", chunks.size(), tokenCount, null);
+            // 此时只有文本切片可用，向量尚未完成，不能提前显示 READY。
+            mark(document, "EMBEDDING", chunks.size(), tokenCount, null);
         } catch (Exception e) {
             // 失败状态和内部原因落库，控制器只向客户端返回通用解析失败信息。
             mark(document, "FAILED", 0, 0, e.getMessage());
@@ -110,25 +111,6 @@ public class SessionDocumentParseServiceImpl implements SessionDocumentParseServ
         return Path.of(ThinkChainConfig.getProfile(), relativePath);
     }
 
-    private List<String> splitText(String text) {
-        List<String> chunks = new ArrayList<>();
-        String normalized = text == null ? "" : text.replace("\r\n", "\n").trim();
-        if (normalized.isBlank()) {
-            return chunks;
-        }
-        int start = 0;
-        while (start < normalized.length()) {
-            int end = Math.min(start + CHUNK_SIZE, normalized.length());
-            chunks.add(normalized.substring(start, end).trim());
-            if (end == normalized.length()) {
-                break;
-            }
-            // 保留 120 字符重叠，减少上下文在切片边界处断裂。
-            start = Math.max(end - CHUNK_OVERLAP, start + 1);
-        }
-        return chunks;
-    }
-
     private void mark(SessionDocument document, String status, Integer chunkCount, Integer tokenCount, String errorMessage) {
         document.setParseStatus(status);
         if (chunkCount != null) {
@@ -141,13 +123,4 @@ public class SessionDocumentParseServiceImpl implements SessionDocumentParseServ
         documentService.update(document);
     }
 
-    private static int estimateTokens(String text) {
-        return Math.max(1, (int) Math.ceil((text == null ? 0 : text.length()) / 4.0));
-    }
-
-    private static String sha256(String text) throws Exception {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] bytes = digest.digest(text.getBytes(StandardCharsets.UTF_8));
-        return HexFormat.of().formatHex(bytes);
-    }
 }

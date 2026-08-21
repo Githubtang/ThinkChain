@@ -4,6 +4,7 @@ import com.tyh.chat.rag.chunk.domain.KnowledgeChunk;
 import com.tyh.chat.rag.chunk.service.KnowledgeChunkService;
 import com.tyh.chat.rag.document.domain.KnowledgeDocument;
 import com.tyh.chat.rag.document.extractor.DocumentTextExtractor;
+import com.tyh.chat.rag.document.service.DocumentChunker;
 import com.tyh.chat.rag.document.service.KnowledgeDocumentParseService;
 import com.tyh.chat.rag.document.service.KnowledgeDocumentService;
 import com.tyh.chat.rag.embedding.store.RagEmbeddingStore;
@@ -12,11 +13,7 @@ import com.tyh.common.utils.file.FileUtils;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.List;
 
 /**
@@ -29,21 +26,22 @@ import java.util.List;
 @Service
 public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParseService {
 
-    private static final int CHUNK_SIZE = 1200;
-    private static final int CHUNK_OVERLAP = 120;
     private final KnowledgeDocumentService documentService;
     private final KnowledgeChunkService chunkService;
     private final ObjectProvider<RagEmbeddingStore> embeddingStoreProvider;
     private final DocumentTextExtractor textExtractor;
+    private final DocumentChunker chunker;
 
     public KnowledgeDocumentParseServiceImpl(KnowledgeDocumentService documentService,
                                              KnowledgeChunkService chunkService,
                                              ObjectProvider<RagEmbeddingStore> embeddingStoreProvider,
-                                             DocumentTextExtractor textExtractor) {
+                                             DocumentTextExtractor textExtractor,
+                                             DocumentChunker chunker) {
         this.documentService = documentService;
         this.chunkService = chunkService;
         this.embeddingStoreProvider = embeddingStoreProvider;
         this.textExtractor = textExtractor;
+        this.chunker = chunker;
     }
 
     @Override
@@ -58,7 +56,8 @@ public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParse
             mark(document, "PARSING", null, null);
             String text = readText(document);
             mark(document, "CHUNKING", null, null);
-            List<String> chunks = splitText(text);
+            List<DocumentChunker.Chunk> chunks = chunker.split(text,
+                    document.getTitle() != null ? document.getTitle() : document.getFileName());
             if (chunks.isEmpty()) {
                 throw new IllegalArgumentException("Document text is empty");
             }
@@ -66,7 +65,8 @@ public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParse
             embeddingStoreProvider.ifAvailable(store -> store.deleteByDocumentId(document.getId()));
             chunkService.deleteByDocumentId(document.getId());
             for (int i = 0; i < chunks.size(); i++) {
-                String content = chunks.get(i);
+                DocumentChunker.Chunk parsedChunk = chunks.get(i);
+                String content = parsedChunk.content();
                 KnowledgeChunk chunk = new KnowledgeChunk();
                 chunk.setScopeType("KB");
                 chunk.setScopeId(document.getKnowledgeBaseId());
@@ -75,14 +75,17 @@ public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParse
                 chunk.setChunkIndex(i);
                 chunk.setContent(content);
                 // 内容哈希可用于判断内容是否变化；Token 数目前只是按字符数估算，不是模型精确计数。
-                chunk.setContentHash(sha256(content));
-                chunk.setTokenCount(estimateTokens(content));
+                chunk.setContentHash(chunker.sha256(content));
+                chunk.setTokenCount(chunker.estimateTokens(content));
                 chunk.setCharCount(content.length());
-                chunk.setSectionTitle(document.getTitle() != null ? document.getTitle() : document.getFileName());
+                chunk.setPageNumber(parsedChunk.pageNumber());
+                chunk.setSectionTitle(parsedChunk.sectionTitle());
                 chunk.setEmbeddingStatus("PENDING");
                 chunkService.create(chunk);
             }
-            mark(document, "COMPLETED", chunks.size(), null);
+            // 切片完成后仍属于后台处理中，必须保持 EMBEDDING；只有向量全部写入成功后才由
+            // DocumentProcessingService 标记 READY。这样应用在两步之间退出时，重启恢复器能够重新排队。
+            mark(document, "EMBEDDING", chunks.size(), null);
         } catch (Exception e) {
             // 解析失败不把异常细节直接返回前端，而是保存到文档记录供服务端排查。
             mark(document, "FAILED", 0, e.getMessage());
@@ -108,25 +111,6 @@ public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParse
         return Path.of(ThinkChainConfig.getProfile(), relativePath);
     }
 
-    private List<String> splitText(String text) {
-        List<String> chunks = new ArrayList<>();
-        String normalized = text == null ? "" : text.replace("\r\n", "\n").trim();
-        if (normalized.isBlank()) {
-            return chunks;
-        }
-        int start = 0;
-        while (start < normalized.length()) {
-            int end = Math.min(start + CHUNK_SIZE, normalized.length());
-            chunks.add(normalized.substring(start, end).trim());
-            if (end == normalized.length()) {
-                break;
-            }
-            // 下一片向前回退一段形成重叠，同时至少前进 1 个字符，避免死循环。
-            start = Math.max(end - CHUNK_OVERLAP, start + 1);
-        }
-        return chunks;
-    }
-
     private void mark(KnowledgeDocument document, String status, Integer chunkCount, String errorMessage) {
         document.setStatus(status);
         if (chunkCount != null) {
@@ -136,13 +120,4 @@ public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParse
         documentService.update(document);
     }
 
-    private static int estimateTokens(String text) {
-        return Math.max(1, (int) Math.ceil((text == null ? 0 : text.length()) / 4.0));
-    }
-
-    private static String sha256(String text) throws Exception {
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] bytes = digest.digest(text.getBytes(StandardCharsets.UTF_8));
-        return HexFormat.of().formatHex(bytes);
-    }
 }

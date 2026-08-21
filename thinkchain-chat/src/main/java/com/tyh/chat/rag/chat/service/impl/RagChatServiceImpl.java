@@ -13,26 +13,22 @@ import com.tyh.chat.rag.chat.dto.RagSource;
 import com.tyh.chat.rag.chat.service.RagChatService;
 import com.tyh.chat.rag.embedding.client.EmbeddingClient;
 import com.tyh.chat.rag.embedding.store.RagEmbeddingMatch;
-import com.tyh.chat.rag.embedding.store.RagEmbeddingStore;
 import com.tyh.chat.rag.log.domain.RagQueryLog;
 import com.tyh.chat.rag.log.service.RagQueryLogService;
 import com.tyh.chat.rag.retrieval.RagPromptBuilder;
+import com.tyh.chat.rag.retrieval.RagRetrievalService;
 import com.tyh.chat.log.ChatLogSanitizer;
 import com.tyh.common.constant.HttpStatus;
 import com.tyh.common.core.domain.AjaxResult;
 import com.tyh.common.exception.ServiceException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -45,11 +41,9 @@ import java.util.UUID;
 public class RagChatServiceImpl implements RagChatService {
 
     private static final Logger log = LoggerFactory.getLogger(RagChatServiceImpl.class);
-    private static final int DEFAULT_TOP_K = 6;
-
     private final ChatService chatService;
     private final EmbeddingClient embeddingClient;
-    private final ObjectProvider<RagEmbeddingStore> embeddingStoreProvider;
+    private final RagRetrievalService retrievalService;
     private final RagQueryLogService queryLogService;
     private final ObjectMapper objectMapper;
     private final RagPromptBuilder promptBuilder;
@@ -57,14 +51,14 @@ public class RagChatServiceImpl implements RagChatService {
 
     public RagChatServiceImpl(ChatService chatService,
                               EmbeddingClient embeddingClient,
-                              ObjectProvider<RagEmbeddingStore> embeddingStoreProvider,
+                              RagRetrievalService retrievalService,
                               RagQueryLogService queryLogService,
                               ObjectMapper objectMapper,
                               RagPromptBuilder promptBuilder,
                               ChatLogSanitizer logSanitizer) {
         this.chatService = chatService;
         this.embeddingClient = embeddingClient;
-        this.embeddingStoreProvider = embeddingStoreProvider;
+        this.retrievalService = retrievalService;
         this.queryLogService = queryLogService;
         this.objectMapper = objectMapper;
         this.promptBuilder = promptBuilder;
@@ -83,15 +77,16 @@ public class RagChatServiceImpl implements RagChatService {
             if (request.getQuestion() == null || request.getQuestion().isBlank()) {
                 throw new IllegalArgumentException("Question must not be blank");
             }
-            RagEmbeddingStore store = embeddingStoreProvider.getIfAvailable();
-            if (store == null) {
-                throw new IllegalStateException("RagEmbeddingStore is unavailable; check vector datasource config");
-            }
-
-            int topK = request.getTopK() != null && request.getTopK() > 0 ? request.getTopK() : DEFAULT_TOP_K;
-            // 问题和文档切片必须使用兼容的向量模型，才能在同一个语义空间中比较距离。
-            float[] queryEmbedding = embeddingClient.embed(request.getQuestion());
-            List<RagEmbeddingMatch> matches = retrieve(request, store, queryEmbedding, topK);
+            int topK = retrievalService.effectiveTopK(request.getTopK());
+            // 与普通聊天入口调用同一个检索服务，作用域、阈值、排序和上下文预算完全一致。
+            List<RagEmbeddingMatch> matches = retrievalService.retrieve(
+                    request.getQuestion(),
+                    request.getConversationId(),
+                    request.getKnowledgeBaseIds(),
+                    request.getSessionDocumentIds(),
+                    request.getRagMode(),
+                    request.getTopK(),
+                    request.getMinScore());
             List<RagSource> sources = toSources(matches);
 
             // 转成普通聊天请求，模型选择、厂商调用和模型日志就不需要重复实现。
@@ -130,40 +125,6 @@ public class RagChatServiceImpl implements RagChatService {
         } catch (Exception exception) {
             log.warn("Failed to record RAG query log {}: {}", queryLog.getId(), exception.getMessage());
         }
-    }
-
-    private List<RagEmbeddingMatch> retrieve(RagChatRequest request, RagEmbeddingStore store,
-                                             float[] queryEmbedding, int topK) {
-        // ragMode 决定搜索长期知识库、当前会话文档，或者两者都搜索。
-        String mode = normalizedMode(request);
-        List<RagEmbeddingMatch> all = new ArrayList<>();
-        if (useKnowledgeBase(mode) && request.getKnowledgeBaseIds() != null) {
-            for (String knowledgeBaseId : request.getKnowledgeBaseIds()) {
-                if (isNonBlank(knowledgeBaseId)) {
-                    all.addAll(store.searchByScope("KB", knowledgeBaseId.trim(), queryEmbedding, topK));
-                }
-            }
-        }
-        if (useSession(mode) && isNonBlank(request.getConversationId()) && request.getSessionDocumentIds() != null
-                && !request.getSessionDocumentIds().isEmpty()) {
-            all.addAll(store.searchByScope("SESSION", request.getConversationId(),
-                    request.getSessionDocumentIds(), queryEmbedding, topK));
-        }
-        // 同一切片可能从多个范围命中，只保留分数最高的一条，避免重复内容占用上下文。
-        Map<String, RagEmbeddingMatch> unique = new LinkedHashMap<>();
-        for (RagEmbeddingMatch match : all) {
-            if (match.getChunkId() == null) {
-                continue;
-            }
-            RagEmbeddingMatch existing = unique.get(match.getChunkId());
-            if (existing == null || score(match) > score(existing)) {
-                unique.put(match.getChunkId(), match);
-            }
-        }
-        return unique.values().stream()
-                .sorted(Comparator.comparing(RagChatServiceImpl::score).reversed())
-                .limit(topK)
-                .toList();
     }
 
     private ChatRequest buildChatRequest(RagChatRequest request, List<RagEmbeddingMatch> matches, int topK) {
@@ -257,17 +218,9 @@ public class RagChatServiceImpl implements RagChatService {
     private String normalizedMode(RagChatRequest request) {
         String mode = request.getRagMode();
         if (mode == null || mode.isBlank()) {
-            return "KB_ONLY";
+            return "AUTO";
         }
         return mode.trim().toUpperCase(Locale.ROOT);
-    }
-
-    private boolean useSession(String mode) {
-        return "AUTO".equals(mode) || "SESSION_ONLY".equals(mode) || "SESSION_AND_KB".equals(mode);
-    }
-
-    private boolean useKnowledgeBase(String mode) {
-        return "AUTO".equals(mode) || "KB_ONLY".equals(mode) || "SESSION_AND_KB".equals(mode);
     }
 
     private String firstId(List<String> ids) {
@@ -288,11 +241,4 @@ public class RagChatServiceImpl implements RagChatService {
         }
     }
 
-    private static double score(RagEmbeddingMatch match) {
-        return match.getScore() != null ? match.getScore() : 0.0d;
-    }
-
-    private static boolean isNonBlank(String value) {
-        return value != null && !value.isBlank();
-    }
 }

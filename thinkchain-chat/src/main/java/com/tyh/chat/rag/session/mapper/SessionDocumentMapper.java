@@ -14,5 +14,11 @@ public interface SessionDocumentMapper {
 
     int updateSessionDocument(SessionDocument document);
 
+    int claimSessionDocumentProcessing(String id);
+
+    int requestSessionDocumentProcessing(String id);
+
+    int resetInterruptedSessionDocumentProcessing();
+
     int deleteSessionDocumentById(String id);
 }

@@ -14,5 +14,11 @@ public interface KnowledgeDocumentMapper {
 
     int updateKnowledgeDocument(KnowledgeDocument document);
 
+    int claimKnowledgeDocumentProcessing(String id);
+
+    int requestKnowledgeDocumentProcessing(String id);
+
+    int resetInterruptedKnowledgeDocumentProcessing();
+
     int deleteKnowledgeDocumentById(String id);
 }

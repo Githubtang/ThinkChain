@@ -53,6 +53,21 @@ public class SessionDocumentServiceImpl implements SessionDocumentService {
     }
 
     @Override
+    public int claimProcessing(String documentId) {
+        return mapper.claimSessionDocumentProcessing(documentId);
+    }
+
+    @Override
+    public int requestProcessing(String documentId) {
+        return mapper.requestSessionDocumentProcessing(documentId);
+    }
+
+    @Override
+    public int resetInterruptedProcessing() {
+        return mapper.resetInterruptedSessionDocumentProcessing();
+    }
+
+    @Override
     public int deleteById(String id) {
         return mapper.deleteSessionDocumentById(id);
     }

@@ -3,39 +3,28 @@ package com.tyh.chat.rag.retrieval;
 import com.tyh.chat.chat.dto.ChatRequest;
 import com.tyh.chat.chat.dto.Content;
 import com.tyh.chat.chat.dto.Message;
-import com.tyh.chat.rag.embedding.client.EmbeddingClient;
 import com.tyh.chat.rag.embedding.store.RagEmbeddingMatch;
-import com.tyh.chat.rag.embedding.store.RagEmbeddingStore;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * 普通聊天请求的 RAG 增强实现。
  *
- * <p>与 RagChatServiceImpl 的区别是：本类只负责给 ChatRequest 增加参考资料，
- * 不直接调用模型、不生成独立 RAG 响应，也不写 RAG 查询日志。</p>
+ * <p>本类只负责判断普通聊天是否需要 RAG，并把统一检索服务返回的资料放到 system 消息最前面。
+ * 实际向量查询由 RagRetrievalService 完成，独立 RAG 接口也复用相同规则。</p>
  */
 @Service
 public class RagContextServiceImpl implements RagContextService {
 
-    private static final int DEFAULT_TOP_K = 6;
-
-    private final EmbeddingClient embeddingClient;
-    private final ObjectProvider<RagEmbeddingStore> embeddingStoreProvider;
+    private final RagRetrievalService retrievalService;
     private final RagPromptBuilder promptBuilder;
 
-    public RagContextServiceImpl(EmbeddingClient embeddingClient,
-                                 ObjectProvider<RagEmbeddingStore> embeddingStoreProvider,
+    public RagContextServiceImpl(RagRetrievalService retrievalService,
                                  RagPromptBuilder promptBuilder) {
-        this.embeddingClient = embeddingClient;
-        this.embeddingStoreProvider = embeddingStoreProvider;
+        this.retrievalService = retrievalService;
         this.promptBuilder = promptBuilder;
     }
 
@@ -45,63 +34,25 @@ public class RagContextServiceImpl implements RagContextService {
         if (!shouldUseRag(request)) {
             return request;
         }
-        RagEmbeddingStore embeddingStore = embeddingStoreProvider.getIfAvailable();
-        if (embeddingStore == null) {
-            return request;
-        }
         // 只用最后一条用户文本检索，系统消息和历史模型回答不参与向量查询。
         String question = lastUserText(request);
         if (question.isBlank()) {
             return request;
         }
-        int topK = request.getRagTopK() != null && request.getRagTopK() > 0 ? request.getRagTopK() : DEFAULT_TOP_K;
-        float[] queryEmbedding = embeddingClient.embed(question);
-        List<RagEmbeddingMatch> matches = retrieve(request, embeddingStore, queryEmbedding, topK);
+        int topK = retrievalService.effectiveTopK(request.getRagTopK());
+        List<RagEmbeddingMatch> matches = retrievalService.retrieve(
+                question,
+                request.getConversationId(),
+                request.getKnowledgeBaseIds(),
+                request.getSessionDocumentIds(),
+                request.getRagMode(),
+                request.getRagTopK(),
+                request.getRagMinScore());
         if (matches.isEmpty()) {
             // 没有命中时不加入空提示词，保持原来的普通聊天行为。
             return request;
         }
         return withRagContext(request, matches, topK);
-    }
-
-    private List<RagEmbeddingMatch> retrieve(ChatRequest request, RagEmbeddingStore embeddingStore,
-                                             float[] queryEmbedding, int topK) {
-        String mode = normalizedMode(request);
-        List<RagEmbeddingMatch> all = new ArrayList<>();
-        if (useSession(mode) && isNonBlank(request.getConversationId())) {
-            List<String> documentIds = request.getSessionDocumentIds() != null
-                    ? request.getSessionDocumentIds()
-                    : List.of();
-            if (!documentIds.isEmpty()) {
-                all.addAll(embeddingStore.searchByScope("SESSION", request.getConversationId(), documentIds, queryEmbedding, topK));
-            }
-        }
-        if (useKnowledgeBase(mode) && request.getKnowledgeBaseIds() != null) {
-            for (String knowledgeBaseId : request.getKnowledgeBaseIds()) {
-                if (isNonBlank(knowledgeBaseId)) {
-                    all.addAll(embeddingStore.searchByScope("KB", knowledgeBaseId.trim(), queryEmbedding, topK));
-                }
-            }
-        }
-        // 同一个 chunkId 去重，只保留相似度最高的命中记录。
-        Map<String, RagEmbeddingMatch> unique = new LinkedHashMap<>();
-        for (RagEmbeddingMatch match : all) {
-            if (match.getChunkId() == null) {
-                continue;
-            }
-            RagEmbeddingMatch existing = unique.get(match.getChunkId());
-            if (existing == null || score(match) > score(existing)) {
-                unique.put(match.getChunkId(), match);
-            }
-        }
-        // SESSION 资料优先于 KB 资料；同一作用域内再按相似度从高到低排序。
-        return unique.values().stream()
-                .sorted(Comparator
-                        .comparing((RagEmbeddingMatch match) -> !"SESSION".equalsIgnoreCase(match.getScopeType()))
-                        .thenComparing(Comparator.comparing(RagEmbeddingMatch::getScore,
-                                Comparator.nullsLast(Comparator.reverseOrder()))))
-                .limit(topK)
-                .toList();
     }
 
     private ChatRequest withRagContext(ChatRequest source, List<RagEmbeddingMatch> matches, int topK) {
@@ -135,6 +86,7 @@ public class RagContextServiceImpl implements RagContextService {
         target.setKnowledgeBaseIds(source.getKnowledgeBaseIds());
         target.setSessionDocumentIds(source.getSessionDocumentIds());
         target.setRagTopK(source.getRagTopK());
+        target.setRagMinScore(source.getRagMinScore());
         target.setRagMode(source.getRagMode());
         return target;
     }
@@ -155,14 +107,6 @@ public class RagContextServiceImpl implements RagContextService {
         }
         return (request.getSessionDocumentIds() != null && !request.getSessionDocumentIds().isEmpty())
                 || (request.getKnowledgeBaseIds() != null && !request.getKnowledgeBaseIds().isEmpty());
-    }
-
-    private boolean useSession(String mode) {
-        return "AUTO".equals(mode) || "SESSION_ONLY".equals(mode) || "SESSION_AND_KB".equals(mode);
-    }
-
-    private boolean useKnowledgeBase(String mode) {
-        return "AUTO".equals(mode) || "KB_ONLY".equals(mode) || "SESSION_AND_KB".equals(mode);
     }
 
     private String normalizedMode(ChatRequest request) {
@@ -195,11 +139,4 @@ public class RagContextServiceImpl implements RagContextService {
         return "";
     }
 
-    private static double score(RagEmbeddingMatch match) {
-        return match.getScore() != null ? match.getScore() : 0.0d;
-    }
-
-    private static boolean isNonBlank(String value) {
-        return value != null && !value.isBlank();
-    }
 }

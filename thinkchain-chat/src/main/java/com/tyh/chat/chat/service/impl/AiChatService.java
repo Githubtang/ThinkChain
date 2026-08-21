@@ -222,7 +222,9 @@ public class AiChatService implements ChatService {
             return request;
         }
         try {
-            List<ChatMessage> stored = conversationService.listMessages(conversation.getId());
+            // Mapper 只读取最近消息，避免长会话先全量加载再在 Java 内截断。
+            List<ChatMessage> stored = conversationService.listRecentMessages(
+                    conversation.getId(), MAX_HISTORY_MESSAGES);
             if (stored == null || stored.isEmpty()) {
                 return request;
             }
@@ -231,8 +233,20 @@ public class AiChatService implements ChatService {
                 return request;
             }
             ChatRequest target = copyRequest(request);
-            List<Message> merged = new ArrayList<>(history);
-            merged.addAll(request.getMessages());
+            // system 消息必须位于对话历史之前。独立 RAG 接口会在当前请求中携带 system 消息，
+            // 如果简单执行“历史 + 当前请求”，模型会看到位于对话中间的 system，语义和普通聊天不一致。
+            List<Message> merged = new ArrayList<>();
+            for (Message message : request.getMessages()) {
+                if (message != null && "system".equalsIgnoreCase(message.getRole())) {
+                    merged.add(message);
+                }
+            }
+            merged.addAll(history);
+            for (Message message : request.getMessages()) {
+                if (message == null || !"system".equalsIgnoreCase(message.getRole())) {
+                    merged.add(message);
+                }
+            }
             target.setMessages(merged);
             if ((target.getSystemPrompt() == null || target.getSystemPrompt().isBlank())
                     && conversation.getSystemPrompt() != null) {
@@ -311,6 +325,7 @@ public class AiChatService implements ChatService {
         target.setKnowledgeBaseIds(source.getKnowledgeBaseIds());
         target.setSessionDocumentIds(source.getSessionDocumentIds());
         target.setRagTopK(source.getRagTopK());
+        target.setRagMinScore(source.getRagMinScore());
         target.setRagMode(source.getRagMode());
         return target;
     }

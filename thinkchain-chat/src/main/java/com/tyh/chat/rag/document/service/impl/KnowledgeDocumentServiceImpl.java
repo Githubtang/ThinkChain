@@ -53,6 +53,21 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
     }
 
     @Override
+    public int claimProcessing(String documentId) {
+        return mapper.claimKnowledgeDocumentProcessing(documentId);
+    }
+
+    @Override
+    public int requestProcessing(String documentId) {
+        return mapper.requestKnowledgeDocumentProcessing(documentId);
+    }
+
+    @Override
+    public int resetInterruptedProcessing() {
+        return mapper.resetInterruptedKnowledgeDocumentProcessing();
+    }
+
+    @Override
     public int deleteById(String id) {
         return mapper.deleteKnowledgeDocumentById(id);
     }

@@ -38,6 +38,19 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         order by create_time asc
     </select>
 
+    <select id="selectRecentChatMessages" resultMap="ChatMessageResult">
+        select recent.id, recent.conversation_id, recent.role, recent.content_type, recent.content,
+               recent.raw_content, recent.model, recent.create_time
+        from (
+            select id, conversation_id, role, content_type, content, raw_content, model, create_time
+            from chat_message
+            where conversation_id = #{conversationId}
+            order by create_time desc, id desc
+            limit #{limit}
+        ) recent
+        order by recent.create_time asc, recent.id asc
+    </select>
+
     <insert id="insertChatMessage" parameterType="ChatMessage">
         insert into chat_message (
             id, conversation_id, role, content_type, content, raw_content, model, create_time

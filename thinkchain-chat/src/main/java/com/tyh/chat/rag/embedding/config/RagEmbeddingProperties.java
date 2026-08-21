@@ -12,6 +12,10 @@ public class RagEmbeddingProperties {
     private String baseUrl = "https://dashscope.aliyuncs.com";
     private String modelName = "text-embedding-v4";
     private Integer dimensions = 1536;
+    private int connectTimeoutMs = 10000;
+    private int readTimeoutMs = 60000;
+    private int maxRetries = 2;
+    private long retryDelayMs = 500L;
 
     public String getProvider() {
         return provider;
@@ -51,5 +55,37 @@ public class RagEmbeddingProperties {
 
     public void setDimensions(Integer dimensions) {
         this.dimensions = dimensions;
+    }
+
+    public int getConnectTimeoutMs() {
+        return connectTimeoutMs;
+    }
+
+    public void setConnectTimeoutMs(int connectTimeoutMs) {
+        this.connectTimeoutMs = connectTimeoutMs;
+    }
+
+    public int getReadTimeoutMs() {
+        return readTimeoutMs;
+    }
+
+    public void setReadTimeoutMs(int readTimeoutMs) {
+        this.readTimeoutMs = readTimeoutMs;
+    }
+
+    public int getMaxRetries() {
+        return maxRetries;
+    }
+
+    public void setMaxRetries(int maxRetries) {
+        this.maxRetries = maxRetries;
+    }
+
+    public long getRetryDelayMs() {
+        return retryDelayMs;
+    }
+
+    public void setRetryDelayMs(long retryDelayMs) {
+        this.retryDelayMs = retryDelayMs;
     }
 }

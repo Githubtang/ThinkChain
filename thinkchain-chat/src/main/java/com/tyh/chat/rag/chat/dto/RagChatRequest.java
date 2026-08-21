@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tyh.chat.chat.dto.ModelCallOptions;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -33,6 +35,9 @@ public class RagChatRequest {
     @Min(value = 1, message = "topK不能小于1")
     @Max(value = 50, message = "topK不能大于50")
     private Integer topK;
+    @DecimalMin(value = "-1.0", message = "最低相似度不能小于-1")
+    @DecimalMax(value = "1.0", message = "最低相似度不能大于1")
+    private Double minScore;
     @Valid
     private ModelCallOptions options;
 
@@ -98,6 +103,14 @@ public class RagChatRequest {
 
     public void setTopK(Integer topK) {
         this.topK = topK;
+    }
+
+    public Double getMinScore() {
+        return minScore;
+    }
+
+    public void setMinScore(Double minScore) {
+        this.minScore = minScore;
     }
 
     public ModelCallOptions getOptions() {

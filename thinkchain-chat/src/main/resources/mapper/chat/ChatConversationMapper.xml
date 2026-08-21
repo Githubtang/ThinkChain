@@ -56,6 +56,10 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </update>
 
+    <update id="touchChatConversation" parameterType="String">
+        update chat_conversation set update_time = sysdate() where id = #{id}
+    </update>
+
     <delete id="deleteChatConversationById" parameterType="String">
         delete from chat_conversation where id = #{id}
     </delete>

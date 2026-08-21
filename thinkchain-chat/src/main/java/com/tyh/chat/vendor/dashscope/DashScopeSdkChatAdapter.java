@@ -10,6 +10,9 @@ import com.alibaba.dashscope.audio.asr.transcription.TranscriptionResult;
 import com.alibaba.dashscope.audio.asr.transcription.TranscriptionTaskResult;
 import com.alibaba.dashscope.common.MultiModalMessage;
 import com.alibaba.dashscope.common.TaskStatus;
+import com.alibaba.dashscope.exception.ApiException;
+import com.alibaba.dashscope.protocol.ConnectionConfigurations;
+import com.alibaba.dashscope.protocol.ConnectionOptions;
 import com.alibaba.dashscope.protocol.Protocol;
 import com.alibaba.dashscope.utils.Constants;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -23,10 +26,15 @@ import com.tyh.chat.vendor.VendorChatAdapter;
 import com.tyh.chat.vendor.VendorChatResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -60,10 +68,23 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
     private static final Object SDK_BASE_URL_LOCK = new Object();
 
     private final ObjectMapper objectMapper;
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final DashScopeClientProperties properties;
+    private final RestTemplate restTemplate;
 
-    public DashScopeSdkChatAdapter(ObjectMapper objectMapper) {
+    public DashScopeSdkChatAdapter(ObjectMapper objectMapper,
+                                   DashScopeClientProperties properties,
+                                   RestTemplateBuilder builder) {
         this.objectMapper = objectMapper;
+        this.properties = properties;
+        this.restTemplate = builder
+                .connectTimeout(Duration.ofMillis(Math.max(1, properties.getConnectTimeoutMs())))
+                .readTimeout(Duration.ofMillis(Math.max(1, properties.getReadTimeoutMs())))
+                .build();
+    }
+
+    /** 单元测试使用的便捷构造器，生产环境由 Spring 注入上面的完整配置。 */
+    DashScopeSdkChatAdapter(ObjectMapper objectMapper) {
+        this(objectMapper, new DashScopeClientProperties(), new RestTemplateBuilder());
     }
 
     @Override
@@ -88,9 +109,7 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
 
         // 真正的外部网络调用发生在 conv.call；网络、鉴权或模型错误会向上抛给 AiChatService 统一处理。
         // 多模态 SDK 使用原生 /api/v1 地址，不能直接使用配置中的 /compatible-mode/v1 地址。
-        MultiModalConversation conv = new MultiModalConversation(
-                Protocol.HTTP.getValue(), nativeApiBaseUrl(model.getBaseUrl()));
-        MultiModalConversationResult result = conv.call(param);
+        MultiModalConversationResult result = callWithRetry(model, param);
         String text = extractAssistantText(result);
         if (text == null || text.isBlank()) {
             log.warn("DashScope 返回空文本, model={}", model.getName());
@@ -109,7 +128,7 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
         Objects.requireNonNull(onDelta, "onDelta");
         MultiModalConversationParam param = buildParam(model, request, true);
         MultiModalConversation conversation = new MultiModalConversation(
-                Protocol.HTTP.getValue(), nativeApiBaseUrl(model.getBaseUrl()));
+                Protocol.HTTP.getValue(), nativeApiBaseUrl(model.getBaseUrl()), connectionOptions());
         StringBuilder fullText = new StringBuilder();
         AtomicReference<MultiModalConversationResult> lastResult = new AtomicReference<>();
         conversation.streamCall(param).blockingForEach(result -> {
@@ -124,6 +143,43 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
             throw new IllegalStateException("DashScope 流式调用没有返回任何结果");
         }
         return toVendorResult(fullText.toString(), lastResult.get());
+    }
+
+    /**
+     * 普通模型调用只对 429、服务端错误和底层网络异常做有限重试。
+     * 鉴权或参数错误不会重试，避免重复消耗额度且让配置错误尽快暴露。
+     */
+    private MultiModalConversationResult callWithRetry(ModelEntry model,
+                                                       MultiModalConversationParam param) throws Exception {
+        int maxAttempts = Math.max(1, properties.getMaxRetries() + 1);
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                MultiModalConversation conversation = new MultiModalConversation(
+                        Protocol.HTTP.getValue(), nativeApiBaseUrl(model.getBaseUrl()), connectionOptions());
+                return conversation.call(param);
+            } catch (ApiException exception) {
+                int status = exception.getStatus() != null ? exception.getStatus().getStatusCode() : 0;
+                if (attempt == maxAttempts || (status != 429 && status < 500)) {
+                    throw exception;
+                }
+                waitBeforeRetry(attempt);
+            } catch (RuntimeException exception) {
+                if (attempt == maxAttempts || !hasNetworkCause(exception)) {
+                    throw exception;
+                }
+                waitBeforeRetry(attempt);
+            }
+        }
+        throw new IllegalStateException("DashScope model request failed");
+    }
+
+    /** 每个 SDK 调用单独携带超时，避免修改进程级全局变量影响其他请求。 */
+    private ConnectionOptions connectionOptions() {
+        return ConnectionOptions.builder()
+                .connectTimeout(Duration.ofMillis(Math.max(1, properties.getConnectTimeoutMs())))
+                .writeTimeout(Duration.ofMillis(Math.max(1, properties.getWriteTimeoutMs())))
+                .readTimeout(Duration.ofMillis(Math.max(1, properties.getReadTimeoutMs())))
+                .build();
     }
 
     /**
@@ -256,7 +312,7 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
         }
 
         TranscriptionTaskResult taskResult = firstSuccessfulTask(completedResult.getResults());
-        String resultJson = restTemplate.getForObject(taskResult.getTranscriptionUrl(), String.class);
+        String resultJson = downloadTranscriptionResult(taskResult.getTranscriptionUrl());
         if (resultJson == null || resultJson.isBlank()) {
             throw new IllegalStateException("DashScope 音频转写结果文件为空");
         }
@@ -268,8 +324,30 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
         return transcript;
     }
 
+    /** 下载转写结果时使用和模型调用相同的有限重试规则。 */
+    private String downloadTranscriptionResult(String url) {
+        int maxAttempts = Math.max(1, properties.getMaxRetries() + 1);
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                return restTemplate.getForObject(url, String.class);
+            } catch (RestClientResponseException exception) {
+                int status = exception.getStatusCode().value();
+                if (attempt == maxAttempts || (status != 429 && status < 500)) {
+                    throw exception;
+                }
+                waitBeforeRetry(attempt);
+            } catch (ResourceAccessException exception) {
+                if (attempt == maxAttempts) {
+                    throw exception;
+                }
+                waitBeforeRetry(attempt);
+            }
+        }
+        throw new IllegalStateException("DashScope transcription download failed");
+    }
+
     /** 提交 Paraformer 异步任务，并阻塞等待 DashScope 返回最终结果。 */
-    private static TranscriptionResult executeTranscription(ModelEntry model, String audioUrl) {
+    private TranscriptionResult executeTranscription(ModelEntry model, String audioUrl) {
         TranscriptionParam param = TranscriptionParam.builder()
                 .apiKey(model.getApiKey())
                 .model(TRANSCRIPTION_MODEL)
@@ -280,8 +358,14 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
         // 录音转写 SDK 使用全局服务地址，因此必须加锁并在调用结束后恢复原值。
         synchronized (SDK_BASE_URL_LOCK) {
             String previousBaseUrl = Constants.baseHttpApiUrl;
+            ConnectionConfigurations previousConnections = Constants.connectionConfigurations;
             try {
                 Constants.baseHttpApiUrl = nativeApiBaseUrl(model.getBaseUrl());
+                Constants.connectionConfigurations = ConnectionConfigurations.builder()
+                        .connectTimeout(Duration.ofMillis(Math.max(1, properties.getConnectTimeoutMs())))
+                        .writeTimeout(Duration.ofMillis(Math.max(1, properties.getWriteTimeoutMs())))
+                        .readTimeout(Duration.ofMillis(Math.max(1, properties.getReadTimeoutMs())))
+                        .build();
                 Transcription transcription = new Transcription();
                 TranscriptionResult submitted = transcription.asyncCall(param);
                 if (submitted == null || submitted.getTaskId() == null || submitted.getTaskId().isBlank()) {
@@ -292,8 +376,29 @@ public class DashScopeSdkChatAdapter implements VendorChatAdapter {
                 return transcription.wait(query);
             } finally {
                 Constants.baseHttpApiUrl = previousBaseUrl;
+                Constants.connectionConfigurations = previousConnections;
             }
         }
+    }
+
+    private void waitBeforeRetry(int attempt) {
+        try {
+            Thread.sleep(Math.max(0L, properties.getRetryDelayMs()) * attempt);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("DashScope retry interrupted", exception);
+        }
+    }
+
+    private static boolean hasNetworkCause(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof IOException || current instanceof ResourceAccessException) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     /** 找到成功且包含结果下载地址的音频子任务。 */

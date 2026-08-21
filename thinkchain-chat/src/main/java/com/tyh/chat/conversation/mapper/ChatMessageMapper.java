@@ -3,6 +3,7 @@ package com.tyh.chat.conversation.mapper;
 import com.tyh.chat.conversation.domain.ChatMessage;
 
 import java.util.List;
+import org.apache.ibatis.annotations.Param;
 
 /**
  * 对话消息数据映射接口。
@@ -17,6 +18,10 @@ public interface ChatMessageMapper {
     ChatMessage selectChatMessageById(String id);
 
     List<ChatMessage> selectChatMessageList(ChatMessage message);
+
+    /** 查询最近若干条消息，并按正常对话时间升序返回。 */
+    List<ChatMessage> selectRecentChatMessages(@Param("conversationId") String conversationId,
+                                               @Param("limit") int limit);
 
     int insertChatMessage(ChatMessage message);
 

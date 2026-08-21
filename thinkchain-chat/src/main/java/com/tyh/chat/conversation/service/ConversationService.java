@@ -44,6 +44,9 @@ public interface ConversationService {
     /** 查询一个会话中的全部消息；调用前必须先完成会话归属校验。 */
     List<ChatMessage> listMessages(String conversationId);
 
+    /** 只从数据库读取最近 limit 条消息，供模型恢复上下文，避免加载整个会话。 */
+    List<ChatMessage> listRecentMessages(String conversationId, int limit);
+
     /** 删除会话及其消息，返回受影响的会话记录数。 */
     int deleteConversation(String conversationId);
 }

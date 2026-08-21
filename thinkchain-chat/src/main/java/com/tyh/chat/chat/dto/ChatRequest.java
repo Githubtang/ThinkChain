@@ -3,6 +3,8 @@ package com.tyh.chat.chat.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -66,6 +68,11 @@ public class ChatRequest {
     @Min(value = 1, message = "RAG topK不能小于1")
     @Max(value = 50, message = "RAG topK不能大于50")
     private Integer ragTopK;
+
+    /** 最低向量相似度；为空时使用 application-ai.yml 中的统一默认值。 */
+    @DecimalMin(value = "-1.0", message = "RAG最低相似度不能小于-1")
+    @DecimalMax(value = "1.0", message = "RAG最低相似度不能大于1")
+    private Double ragMinScore;
 
     /** RAG 模式：AUTO / SESSION_ONLY / KB_ONLY / SESSION_AND_KB / NONE。 */
     @Pattern(regexp = "(?i)AUTO|SESSION_ONLY|KB_ONLY|SESSION_AND_KB|NONE",
@@ -158,6 +165,14 @@ public class ChatRequest {
 
     public void setRagTopK(Integer ragTopK) {
         this.ragTopK = ragTopK;
+    }
+
+    public Double getRagMinScore() {
+        return ragMinScore;
+    }
+
+    public void setRagMinScore(Double ragMinScore) {
+        this.ragMinScore = ragMinScore;
     }
 
     public String getRagMode() {

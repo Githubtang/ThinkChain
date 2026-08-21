@@ -13,7 +13,7 @@ langchain4j:
 
       - name: qwen3.7-plus
         provider: dashscope
-        apiKey: ${QWEN_API_KEY}
+        apiKey:
         baseUrl: "https://llm-wxfgsuswv5x5lqkd.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
         modelName: qwen3.7-plus
         enabled: true
@@ -39,10 +39,30 @@ thinkchain:
   rag:
     embedding:
       provider: dashscope
-      apiKey: ${QWEN_API_KEY}
+      apiKey:
       baseUrl: "https://llm-wxfgsuswv5x5lqkd.cn-beijing.maas.aliyuncs.com"
       modelName: "qwen3.7-text-embedding"
       dimensions: 1536
+      connectTimeoutMs: 10000
+      readTimeoutMs: 60000
+      maxRetries: 2
+      retryDelayMs: 500
+    retrieval:
+      # 普通聊天和独立 RAG 接口共同使用这些默认值，请求显式传值时优先使用请求值。
+      topK: 6
+      minScore: 0.35
+      maxContextChars: 12000
+    processing:
+      corePoolSize: 2
+      maxPoolSize: 4
+      queueCapacity: 100
+      pollDelayMs: 60000
+  dashscope:
+    connectTimeoutMs: 10000
+    readTimeoutMs: 120000
+    writeTimeoutMs: 60000
+    maxRetries: 1
+    retryDelayMs: 500
 
 spring:
   datasource:
@@ -54,7 +74,7 @@ spring:
         # 若部署环境仅支持 IPv4，请改用 Dashboard -> Connect 中的 Session Pooler 地址。
         url: jdbc:postgresql://db.pkteuzurjbhnhzcnbkjz.supabase.co:5432/postgres?sslmode=require
         username: postgres
-        password: ${POSTGRES_PASSSWORD}
+        password:
         initialSize: 1
         minIdle: 1
         maxActive: 5

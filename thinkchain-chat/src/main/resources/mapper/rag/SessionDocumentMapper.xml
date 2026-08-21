@@ -79,6 +79,24 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         where id = #{id}
     </update>
 
+    <update id="claimSessionDocumentProcessing" parameterType="String">
+        update rag_session_document
+        set parse_status = 'PARSING', error_message = null, update_time = sysdate()
+        where id = #{id} and parse_status in ('PENDING', 'FAILED')
+    </update>
+
+    <update id="requestSessionDocumentProcessing" parameterType="String">
+        update rag_session_document
+        set parse_status = 'PENDING', error_message = null, update_time = sysdate()
+        where id = #{id} and parse_status in ('READY', 'COMPLETED', 'FAILED')
+    </update>
+
+    <update id="resetInterruptedSessionDocumentProcessing">
+        update rag_session_document
+        set parse_status = 'PENDING', error_message = '应用上次退出时任务中断，已自动重新排队', update_time = sysdate()
+        where parse_status in ('PARSING', 'CHUNKING', 'EMBEDDING')
+    </update>
+
     <delete id="deleteSessionDocumentById" parameterType="String">
         delete from rag_session_document where id = #{id}
     </delete>

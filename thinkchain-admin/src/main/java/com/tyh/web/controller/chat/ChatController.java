@@ -11,6 +11,8 @@ import com.tyh.chat.security.ChatAccessService;
 import com.tyh.chat.security.ChatResourceDeletionService;
 import com.tyh.chat.validation.ChatRequestValidator;
 import com.tyh.common.core.domain.AjaxResult;
+import com.tyh.common.core.controller.BaseController;
+import com.tyh.common.core.page.TableDataInfo;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -49,7 +51,7 @@ import java.util.List;
 @Validated
 @RestController
 @RequestMapping("/ai/chat")
-public class ChatController {
+public class ChatController extends BaseController {
 
     private final ChatService chatService;
     private final ChatStreamService chatStreamService;
@@ -112,15 +114,17 @@ public class ChatController {
 
     @Operation(summary = "查询会话列表", description = "查询会话列表")
     @GetMapping("/conversations")
-    public AjaxResult conversations() {
-        return AjaxResult.success(conversationService.listConversations(accessService.currentUserId()));
+    public TableDataInfo conversations() {
+        startPage();
+        return getDataTable(conversationService.listConversations(accessService.currentUserId()));
     }
 
     @Operation(summary = "查询会话消息列表", description = "查询会话消息列表")
     @GetMapping("/conversations/{conversationId}/messages")
-    public AjaxResult messages(@PathVariable String conversationId) {
+    public TableDataInfo messages(@PathVariable String conversationId) {
         accessService.requireConversation(conversationId);
-        return AjaxResult.success(conversationService.listMessages(conversationId));
+        startPage();
+        return getDataTable(conversationService.listMessages(conversationId));
     }
 
     @Operation(summary = "删除会话", description = "删除会话")

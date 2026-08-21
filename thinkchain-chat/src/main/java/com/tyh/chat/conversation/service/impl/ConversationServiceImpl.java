@@ -65,6 +65,7 @@ public class ConversationServiceImpl implements ConversationService {
     }
 
     @Override
+    @Transactional
     public ChatMessage saveUserMessage(String conversationId, String model, Message message) {
         // content 保存便于阅读的文本；rawContent 保存完整 Message JSON，防止多模态字段丢失。
         ChatMessage chatMessage = new ChatMessage();
@@ -76,10 +77,12 @@ public class ConversationServiceImpl implements ConversationService {
         chatMessage.setRawContent(flattenRaw(message));
         chatMessage.setModel(model);
         messageMapper.insertChatMessage(chatMessage);
+        conversationMapper.touchChatConversation(conversationId);
         return chatMessage;
     }
 
     @Override
+    @Transactional
     public ChatMessage saveAssistantMessage(String conversationId, String model, String content, String rawContent) {
         ChatMessage chatMessage = new ChatMessage();
         chatMessage.setId(UUID.randomUUID().toString());
@@ -90,6 +93,7 @@ public class ConversationServiceImpl implements ConversationService {
         chatMessage.setRawContent(rawContent);
         chatMessage.setModel(model);
         messageMapper.insertChatMessage(chatMessage);
+        conversationMapper.touchChatConversation(conversationId);
         return chatMessage;
     }
 
@@ -105,6 +109,11 @@ public class ConversationServiceImpl implements ConversationService {
         ChatMessage query = new ChatMessage();
         query.setConversationId(conversationId);
         return messageMapper.selectChatMessageList(query);
+    }
+
+    @Override
+    public List<ChatMessage> listRecentMessages(String conversationId, int limit) {
+        return messageMapper.selectRecentChatMessages(conversationId, Math.max(1, Math.min(limit, 100)));
     }
 
     @Override
