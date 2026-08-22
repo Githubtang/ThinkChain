@@ -76,6 +76,13 @@ public class JdbcRagEmbeddingStore implements RagEmbeddingStore {
     }
 
     @Override
+    public List<String> findChunkIdsByDocumentId(String documentId) {
+        return jdbcTemplate.queryForList(
+                "select chunk_id from rag_embedding where document_id = ? order by chunk_id",
+                String.class, documentId);
+    }
+
+    @Override
     public List<RagEmbeddingMatch> search(String knowledgeBaseId, float[] queryEmbedding, int topK) {
         return searchByScope("KB", knowledgeBaseId, queryEmbedding, topK);
     }

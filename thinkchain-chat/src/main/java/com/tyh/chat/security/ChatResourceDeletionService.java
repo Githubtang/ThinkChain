@@ -8,10 +8,9 @@ import com.tyh.chat.rag.embedding.store.RagEmbeddingStore;
 import com.tyh.chat.rag.knowledge.service.KnowledgeBaseService;
 import com.tyh.chat.rag.session.domain.SessionDocument;
 import com.tyh.chat.rag.session.service.SessionDocumentService;
-import com.tyh.common.config.ThinkChainConfig;
+import com.tyh.chat.validation.ChatFilePathResolver;
 import com.tyh.common.constant.HttpStatus;
 import com.tyh.common.exception.ServiceException;
-import com.tyh.common.utils.file.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
@@ -44,19 +43,22 @@ public class ChatResourceDeletionService {
     private final SessionDocumentService sessionDocumentService;
     private final KnowledgeChunkService chunkService;
     private final ObjectProvider<RagEmbeddingStore> embeddingStoreProvider;
+    private final ChatFilePathResolver filePathResolver;
 
     public ChatResourceDeletionService(ConversationService conversationService,
                                        KnowledgeBaseService knowledgeBaseService,
                                        KnowledgeDocumentService knowledgeDocumentService,
                                        SessionDocumentService sessionDocumentService,
                                        KnowledgeChunkService chunkService,
-                                       ObjectProvider<RagEmbeddingStore> embeddingStoreProvider) {
+                                       ObjectProvider<RagEmbeddingStore> embeddingStoreProvider,
+                                       ChatFilePathResolver filePathResolver) {
         this.conversationService = conversationService;
         this.knowledgeBaseService = knowledgeBaseService;
         this.knowledgeDocumentService = knowledgeDocumentService;
         this.sessionDocumentService = sessionDocumentService;
         this.chunkService = chunkService;
         this.embeddingStoreProvider = embeddingStoreProvider;
+        this.filePathResolver = filePathResolver;
     }
 
     @Transactional
@@ -148,20 +150,7 @@ public class ChatResourceDeletionService {
 
     private void deleteLocalFile(String filePath) {
         try {
-            Path root = Path.of(ThinkChainConfig.getProfile()).toAbsolutePath().normalize();
-            String relative = FileUtils.stripPrefix(filePath);
-            if (relative == null || relative.isBlank()) {
-                relative = filePath;
-            }
-            while (relative.startsWith("/") || relative.startsWith("\\")) {
-                relative = relative.substring(1);
-            }
-            Path target = root.resolve(relative).normalize();
-            // normalize 后必须仍位于上传根目录内，防止异常路径删除项目外部文件。
-            if (!target.startsWith(root)) {
-                log.warn("Refusing to delete file outside upload root: {}", filePath);
-                return;
-            }
+            Path target = filePathResolver.resolveDeletablePath(filePath);
             Files.deleteIfExists(target);
         } catch (Exception exception) {
             log.warn("Failed to delete uploaded file {}: {}", filePath, exception.getMessage());

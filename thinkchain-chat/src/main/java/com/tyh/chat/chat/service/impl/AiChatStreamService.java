@@ -3,6 +3,7 @@ package com.tyh.chat.chat.service.impl;
 import com.tyh.chat.chat.dto.ChatRequest;
 import com.tyh.chat.chat.service.ChatService;
 import com.tyh.chat.chat.service.ChatStreamService;
+import com.tyh.chat.security.ChatStreamConcurrencyGuard;
 import com.tyh.common.core.domain.AjaxResult;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -31,19 +32,24 @@ public class AiChatStreamService implements ChatStreamService {
     private static final long STREAM_TIMEOUT_MILLIS = 5 * 60 * 1000L;
 
     private final ChatService chatService;
+    private final ChatStreamConcurrencyGuard concurrencyGuard;
 
-    public AiChatStreamService(ChatService chatService) {
+    public AiChatStreamService(ChatService chatService, ChatStreamConcurrencyGuard concurrencyGuard) {
         this.chatService = chatService;
+        this.concurrencyGuard = concurrencyGuard;
     }
 
     @Override
     public SseEmitter stream(ChatRequest request, Set<String> requiredCapabilities) {
+        // accessService 已将 JWT 用户写入 request；先占用名额，再创建长连接。
+        ChatStreamConcurrencyGuard.Permit permit = concurrencyGuard.acquire(request.getUserId());
         // 设置上限避免断开的客户端长期占用服务端资源。
         SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MILLIS);
         AtomicBoolean closed = new AtomicBoolean(false);
         AtomicReference<Thread> workerReference = new AtomicReference<>();
         Runnable cancelWorker = () -> {
             closed.set(true);
+            permit.close();
             Thread worker = workerReference.get();
             if (worker != null && worker != Thread.currentThread()) {
                 worker.interrupt();
@@ -98,10 +104,17 @@ public class AiChatStreamService implements ChatStreamService {
                     closed.set(true);
                     emitter.completeWithError(e);
                 }
+            } finally {
+                permit.close();
             }
         });
         workerReference.set(worker);
-        worker.start();
+        try {
+            worker.start();
+        } catch (RuntimeException exception) {
+            permit.close();
+            throw exception;
+        }
         return emitter;
     }
 }

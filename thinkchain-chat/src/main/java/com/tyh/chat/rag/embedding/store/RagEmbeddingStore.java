@@ -19,6 +19,9 @@ public interface RagEmbeddingStore {
     /** 根据文档 ID 删除其全部向量。 */
     int deleteByDocumentId(String documentId);
 
+    /** 查询一个文档在向量库中实际存在的切片 ID，用于主库与 Supabase 一致性检查。 */
+    List<String> findChunkIdsByDocumentId(String documentId);
+
     /** 在单个知识库中查询与问题最相似的前 topK 个切片。 */
     List<RagEmbeddingMatch> search(String knowledgeBaseId, float[] queryEmbedding, int topK);
 

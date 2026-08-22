@@ -7,6 +7,8 @@ import com.tyh.chat.rag.log.service.RagQueryLogService;
 import com.tyh.chat.security.ChatAccessService;
 import com.tyh.chat.validation.ChatRequestValidator;
 import com.tyh.common.core.domain.AjaxResult;
+import com.tyh.common.annotation.RateLimiter;
+import com.tyh.common.enums.LimitType;
 import com.tyh.common.core.controller.BaseController;
 import com.tyh.common.core.page.TableDataInfo;
 import io.swagger.v3.oas.annotations.Operation;
@@ -48,6 +50,7 @@ public class RagChatController extends BaseController {
 
     @Operation(summary = "RAG 对话", description = "RAG 对话")
     @PostMapping("/chat")
+    @RateLimiter(key = "ai:rag:chat:", time = 60, count = 20, limitType = LimitType.USER)
     public AjaxResult chat(
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     required = true,

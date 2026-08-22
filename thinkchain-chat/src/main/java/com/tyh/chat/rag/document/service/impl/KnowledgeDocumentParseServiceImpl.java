@@ -8,8 +8,8 @@ import com.tyh.chat.rag.document.service.DocumentChunker;
 import com.tyh.chat.rag.document.service.KnowledgeDocumentParseService;
 import com.tyh.chat.rag.document.service.KnowledgeDocumentService;
 import com.tyh.chat.rag.embedding.store.RagEmbeddingStore;
-import com.tyh.common.config.ThinkChainConfig;
-import com.tyh.common.utils.file.FileUtils;
+import com.tyh.chat.validation.ChatFilePathResolver;
+import com.tyh.chat.log.ChatLogSanitizer;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
@@ -31,17 +31,23 @@ public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParse
     private final ObjectProvider<RagEmbeddingStore> embeddingStoreProvider;
     private final DocumentTextExtractor textExtractor;
     private final DocumentChunker chunker;
+    private final ChatFilePathResolver filePathResolver;
+    private final ChatLogSanitizer logSanitizer;
 
     public KnowledgeDocumentParseServiceImpl(KnowledgeDocumentService documentService,
                                              KnowledgeChunkService chunkService,
                                              ObjectProvider<RagEmbeddingStore> embeddingStoreProvider,
                                              DocumentTextExtractor textExtractor,
-                                             DocumentChunker chunker) {
+                                             DocumentChunker chunker,
+                                             ChatFilePathResolver filePathResolver,
+                                             ChatLogSanitizer logSanitizer) {
         this.documentService = documentService;
         this.chunkService = chunkService;
         this.embeddingStoreProvider = embeddingStoreProvider;
         this.textExtractor = textExtractor;
         this.chunker = chunker;
+        this.filePathResolver = filePathResolver;
+        this.logSanitizer = logSanitizer;
     }
 
     @Override
@@ -88,27 +94,15 @@ public class KnowledgeDocumentParseServiceImpl implements KnowledgeDocumentParse
             mark(document, "EMBEDDING", chunks.size(), null);
         } catch (Exception e) {
             // 解析失败不把异常细节直接返回前端，而是保存到文档记录供服务端排查。
-            mark(document, "FAILED", 0, e.getMessage());
+            mark(document, "FAILED", 0, logSanitizer.sanitizeError(e.getMessage()));
         }
         return documentService.getById(documentId);
     }
 
     private String readText(KnowledgeDocument document) throws Exception {
         String sourceName = document.getFileName() != null ? document.getFileName() : document.getFilePath();
-        Path path = resolveLocalPath(document.getFilePath());
+        Path path = filePathResolver.resolveReadableFile(document.getFilePath());
         return textExtractor.extract(path, sourceName);
-    }
-
-    private Path resolveLocalPath(String filePath) {
-        // 数据库存储的是 /profile/upload/... 形式的访问路径，这里转换回服务器磁盘路径。
-        String relativePath = FileUtils.stripPrefix(filePath);
-        if (relativePath == null || relativePath.isBlank()) {
-            relativePath = filePath;
-        }
-        while (relativePath.startsWith("/") || relativePath.startsWith("\\")) {
-            relativePath = relativePath.substring(1);
-        }
-        return Path.of(ThinkChainConfig.getProfile(), relativePath);
     }
 
     private void mark(KnowledgeDocument document, String status, Integer chunkCount, String errorMessage) {

@@ -4,6 +4,8 @@ import com.tyh.common.core.domain.BaseEntity;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+import java.util.Date;
+
 public class KnowledgeDocument extends BaseEntity {
 
     private static final long serialVersionUID = 1L;
@@ -24,6 +26,9 @@ public class KnowledgeDocument extends BaseEntity {
     private String status;
     private Integer chunkCount;
     private String errorMessage;
+    private Integer retryCount;
+    private Date processingStartedAt;
+    private Date processingFinishedAt;
 
     public String getId() {
         return id;
@@ -119,5 +124,29 @@ public class KnowledgeDocument extends BaseEntity {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public Integer getRetryCount() {
+        return retryCount;
+    }
+
+    public void setRetryCount(Integer retryCount) {
+        this.retryCount = retryCount;
+    }
+
+    public Date getProcessingStartedAt() {
+        return processingStartedAt;
+    }
+
+    public void setProcessingStartedAt(Date processingStartedAt) {
+        this.processingStartedAt = processingStartedAt;
+    }
+
+    public Date getProcessingFinishedAt() {
+        return processingFinishedAt;
+    }
+
+    public void setProcessingFinishedAt(Date processingFinishedAt) {
+        this.processingFinishedAt = processingFinishedAt;
     }
 }

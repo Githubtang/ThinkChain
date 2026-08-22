@@ -9,6 +9,7 @@ import com.tyh.chat.rag.embedding.service.RagEmbeddingService;
 import com.tyh.chat.rag.session.domain.SessionDocument;
 import com.tyh.chat.rag.session.service.SessionDocumentParseService;
 import com.tyh.chat.rag.session.service.SessionDocumentService;
+import com.tyh.chat.log.ChatLogSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Set;
+import java.util.Date;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 
@@ -32,8 +34,6 @@ import java.util.concurrent.Executor;
 public class DocumentProcessingServiceImpl implements DocumentProcessingService {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentProcessingServiceImpl.class);
-    private static final int MAX_ERROR_LENGTH = 1000;
-
     private final Executor executor;
     private final KnowledgeDocumentService knowledgeDocumentService;
     private final KnowledgeDocumentParseService knowledgeParseService;
@@ -41,6 +41,7 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
     private final SessionDocumentParseService sessionParseService;
     private final RagEmbeddingService embeddingService;
     private final KnowledgeChunkService chunkService;
+    private final ChatLogSanitizer logSanitizer;
     private final Set<String> queuedTasks = ConcurrentHashMap.newKeySet();
 
     public DocumentProcessingServiceImpl(@Qualifier("documentTaskExecutor") Executor executor,
@@ -49,7 +50,8 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
                                          SessionDocumentService sessionDocumentService,
                                          SessionDocumentParseService sessionParseService,
                                          RagEmbeddingService embeddingService,
-                                         KnowledgeChunkService chunkService) {
+                                         KnowledgeChunkService chunkService,
+                                         ChatLogSanitizer logSanitizer) {
         this.executor = executor;
         this.knowledgeDocumentService = knowledgeDocumentService;
         this.knowledgeParseService = knowledgeParseService;
@@ -57,6 +59,7 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
         this.sessionParseService = sessionParseService;
         this.embeddingService = embeddingService;
         this.chunkService = chunkService;
+        this.logSanitizer = logSanitizer;
     }
 
     @Override
@@ -91,6 +94,23 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
         }
         sessionDocumentService.requestProcessing(documentId);
         return submitSessionDocument(documentId);
+    }
+
+    @Override
+    public DocumentProcessingSummary summary(String userId) {
+        DocumentProcessingSummary summary = new DocumentProcessingSummary();
+        summary.setQueuedTaskCount(queuedCountForUser(userId));
+        summary.setKnowledgePending(countKnowledge(userId, "UPLOADED") + countKnowledge(userId, "PENDING"));
+        summary.setKnowledgeProcessing(countKnowledge(userId, "PARSING")
+                + countKnowledge(userId, "CHUNKING") + countKnowledge(userId, "EMBEDDING"));
+        summary.setKnowledgeReady(countKnowledge(userId, "READY"));
+        summary.setKnowledgeFailed(countKnowledge(userId, "FAILED"));
+        summary.setSessionPending(countSession(userId, "PENDING"));
+        summary.setSessionProcessing(countSession(userId, "PARSING")
+                + countSession(userId, "CHUNKING") + countSession(userId, "EMBEDDING"));
+        summary.setSessionReady(countSession(userId, "READY"));
+        summary.setSessionFailed(countSession(userId, "FAILED"));
+        return summary;
     }
 
     /** 单机启动恢复：此时本实例没有仍在运行的旧任务，因此可安全恢复中断状态。 */
@@ -150,7 +170,11 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
         }
         try {
             KnowledgeDocument parsed = knowledgeParseService.parse(documentId);
-            if (parsed == null || "FAILED".equals(parsed.getStatus())) {
+            if (parsed == null) {
+                return;
+            }
+            if ("FAILED".equals(parsed.getStatus())) {
+                markKnowledge(parsed, "FAILED", parsed.getErrorMessage());
                 return;
             }
             markKnowledge(parsed, "EMBEDDING", null);
@@ -161,7 +185,7 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
         } catch (Exception exception) {
             KnowledgeDocument document = knowledgeDocumentService.getById(documentId);
             if (document != null) {
-                markKnowledge(document, "FAILED", errorMessage(exception));
+                markKnowledge(document, "FAILED", safeError(exception));
             }
             log.warn("Knowledge document processing failed, documentId={}: {}", documentId, exception.getMessage());
         }
@@ -173,7 +197,11 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
         }
         try {
             SessionDocument parsed = sessionParseService.parse(documentId);
-            if (parsed == null || "FAILED".equals(parsed.getParseStatus())) {
+            if (parsed == null) {
+                return;
+            }
+            if ("FAILED".equals(parsed.getParseStatus())) {
+                markSession(parsed, "FAILED", parsed.getErrorMessage());
                 return;
             }
             markSession(parsed, "EMBEDDING", null);
@@ -184,7 +212,7 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
         } catch (Exception exception) {
             SessionDocument document = sessionDocumentService.getById(documentId);
             if (document != null) {
-                markSession(document, "FAILED", errorMessage(exception));
+                markSession(document, "FAILED", safeError(exception));
             }
             log.warn("Session document processing failed, documentId={}: {}", documentId, exception.getMessage());
         }
@@ -204,17 +232,60 @@ public class DocumentProcessingServiceImpl implements DocumentProcessingService 
     private void markKnowledge(KnowledgeDocument document, String status, String errorMessage) {
         document.setStatus(status);
         document.setErrorMessage(errorMessage);
+        if ("READY".equals(status) || "FAILED".equals(status)) {
+            document.setProcessingFinishedAt(new Date());
+        }
         knowledgeDocumentService.update(document);
     }
 
     private void markSession(SessionDocument document, String status, String errorMessage) {
         document.setParseStatus(status);
         document.setErrorMessage(errorMessage);
+        if ("READY".equals(status) || "FAILED".equals(status)) {
+            document.setProcessingFinishedAt(new Date());
+        }
         sessionDocumentService.update(document);
     }
 
-    private static String errorMessage(Exception exception) {
-        String message = exception.getMessage() != null ? exception.getMessage() : exception.getClass().getSimpleName();
-        return message.length() > MAX_ERROR_LENGTH ? message.substring(0, MAX_ERROR_LENGTH) : message;
+    private int countKnowledge(String userId, String status) {
+        KnowledgeDocument query = new KnowledgeDocument();
+        query.setUserId(userId);
+        query.setStatus(status);
+        return knowledgeDocumentService.list(query).size();
     }
+
+    private int countSession(String userId, String status) {
+        SessionDocument query = new SessionDocument();
+        query.setUserId(userId);
+        query.setParseStatus(status);
+        return sessionDocumentService.list(query).size();
+    }
+
+    /** queuedTasks 是单实例内存集合；查询时再校验文档 owner，避免向普通用户暴露全局任务量。 */
+    private int queuedCountForUser(String userId) {
+        int count = 0;
+        for (String taskKey : queuedTasks) {
+            if (taskKey.startsWith("KB:")) {
+                KnowledgeDocument document = knowledgeDocumentService.getById(taskKey.substring(3));
+                if (document != null && userId.equals(document.getUserId())) {
+                    count++;
+                }
+            } else if (taskKey.startsWith("SESSION:")) {
+                SessionDocument document = sessionDocumentService.getById(taskKey.substring(8));
+                if (document != null && userId.equals(document.getUserId())) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    /** 错误落库前先隐藏密钥并限制长度，异常没有 message 时至少保留类型名。 */
+    private String safeError(Exception exception) {
+        String message = exception.getMessage() != null
+                ? exception.getMessage()
+                : exception.getClass().getSimpleName();
+        return logSanitizer.sanitizeError(message);
+    }
+
 }

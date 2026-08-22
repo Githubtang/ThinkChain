@@ -18,4 +18,7 @@ public interface DocumentProcessingService {
 
     /** 把已完成或失败的会话文档重置为待处理后重新提交。 */
     boolean retrySessionDocument(String documentId);
+
+    /** 查询当前用户的待处理、处理中、成功和失败文档数量。 */
+    DocumentProcessingSummary summary(String userId);
 }

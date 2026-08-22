@@ -44,6 +44,9 @@ public class KnowledgeDocumentServiceImpl implements KnowledgeDocumentService {
         if (document.getChunkCount() == null) {
             document.setChunkCount(0);
         }
+        if (document.getRetryCount() == null) {
+            document.setRetryCount(0);
+        }
         return mapper.insertKnowledgeDocument(document);
     }
 

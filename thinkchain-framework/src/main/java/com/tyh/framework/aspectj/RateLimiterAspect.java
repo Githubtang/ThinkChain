@@ -18,6 +18,8 @@ import com.tyh.common.enums.LimitType;
 import com.tyh.common.exception.ServiceException;
 import com.tyh.common.utils.StringUtils;
 import com.tyh.common.utils.ip.IpUtils;
+import com.tyh.common.utils.SecurityUtils;
+import com.tyh.common.constant.HttpStatus;
 
 /**
  * 限流处理
@@ -59,7 +61,7 @@ public class RateLimiterAspect
             Long number = redisTemplate.execute(limitScript, keys, count, time);
             if (StringUtils.isNull(number) || number.intValue() > count)
             {
-                throw new ServiceException("访问过于频繁，请稍候再试");
+                throw new ServiceException("访问过于频繁，请稍候再试", HttpStatus.TOO_MANY_REQUESTS);
             }
             log.info("限制请求'{}',当前请求'{}',缓存key'{}'", count, number.intValue(), combineKey);
         }
@@ -79,6 +81,11 @@ public class RateLimiterAspect
         if (rateLimiter.limitType() == LimitType.IP)
         {
             stringBuffer.append(IpUtils.getIpAddr()).append("-");
+        }
+        else if (rateLimiter.limitType() == LimitType.USER)
+        {
+            // AI 接口按 JWT 用户计数，避免一个用户耗尽其他用户的模型额度。
+            stringBuffer.append(SecurityUtils.getUserId()).append("-");
         }
         MethodSignature signature = (MethodSignature) point.getSignature();
         Method method = signature.getMethod();

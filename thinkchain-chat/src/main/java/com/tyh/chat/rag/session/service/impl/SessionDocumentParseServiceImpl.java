@@ -8,8 +8,8 @@ import com.tyh.chat.rag.embedding.store.RagEmbeddingStore;
 import com.tyh.chat.rag.session.domain.SessionDocument;
 import com.tyh.chat.rag.session.service.SessionDocumentParseService;
 import com.tyh.chat.rag.session.service.SessionDocumentService;
-import com.tyh.common.config.ThinkChainConfig;
-import com.tyh.common.utils.file.FileUtils;
+import com.tyh.chat.validation.ChatFilePathResolver;
+import com.tyh.chat.log.ChatLogSanitizer;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
@@ -30,17 +30,23 @@ public class SessionDocumentParseServiceImpl implements SessionDocumentParseServ
     private final ObjectProvider<RagEmbeddingStore> embeddingStoreProvider;
     private final DocumentTextExtractor textExtractor;
     private final DocumentChunker chunker;
+    private final ChatFilePathResolver filePathResolver;
+    private final ChatLogSanitizer logSanitizer;
 
     public SessionDocumentParseServiceImpl(SessionDocumentService documentService,
                                            KnowledgeChunkService chunkService,
                                            ObjectProvider<RagEmbeddingStore> embeddingStoreProvider,
                                            DocumentTextExtractor textExtractor,
-                                           DocumentChunker chunker) {
+                                           DocumentChunker chunker,
+                                           ChatFilePathResolver filePathResolver,
+                                           ChatLogSanitizer logSanitizer) {
         this.documentService = documentService;
         this.chunkService = chunkService;
         this.embeddingStoreProvider = embeddingStoreProvider;
         this.textExtractor = textExtractor;
         this.chunker = chunker;
+        this.filePathResolver = filePathResolver;
+        this.logSanitizer = logSanitizer;
     }
 
     @Override
@@ -86,7 +92,7 @@ public class SessionDocumentParseServiceImpl implements SessionDocumentParseServ
             mark(document, "EMBEDDING", chunks.size(), tokenCount, null);
         } catch (Exception e) {
             // 失败状态和内部原因落库，控制器只向客户端返回通用解析失败信息。
-            mark(document, "FAILED", 0, 0, e.getMessage());
+            mark(document, "FAILED", 0, 0, logSanitizer.sanitizeError(e.getMessage()));
         }
         return documentService.getById(documentId);
     }
@@ -95,20 +101,8 @@ public class SessionDocumentParseServiceImpl implements SessionDocumentParseServ
         String sourceName = document.getOriginalFileName() != null
                 ? document.getOriginalFileName()
                 : document.getFilePath();
-        Path path = resolveLocalPath(document.getFilePath());
+        Path path = filePathResolver.resolveReadableFile(document.getFilePath());
         return textExtractor.extract(path, sourceName);
-    }
-
-    private Path resolveLocalPath(String filePath) {
-        // 将 /profile/upload/... 访问路径还原为 ThinkChainConfig.profile 下的本地文件路径。
-        String relativePath = FileUtils.stripPrefix(filePath);
-        if (relativePath == null || relativePath.isBlank()) {
-            relativePath = filePath;
-        }
-        while (relativePath.startsWith("/") || relativePath.startsWith("\\")) {
-            relativePath = relativePath.substring(1);
-        }
-        return Path.of(ThinkChainConfig.getProfile(), relativePath);
     }
 
     private void mark(SessionDocument document, String status, Integer chunkCount, Integer tokenCount, String errorMessage) {

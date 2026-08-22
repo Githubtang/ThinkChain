@@ -18,6 +18,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         <result property="chunkCount"       column="chunk_count"        />
         <result property="tokenCount"       column="token_count"        />
         <result property="errorMessage"     column="error_message"      />
+        <result property="retryCount"       column="retry_count"        />
+        <result property="processingStartedAt" column="processing_started_at" />
+        <result property="processingFinishedAt" column="processing_finished_at" />
         <result property="expireTime"       column="expire_time"        />
         <result property="createTime"       column="create_time"        />
         <result property="updateTime"       column="update_time"        />
@@ -26,6 +29,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
     <sql id="selectSessionDocumentVo">
         select id, conversation_id, user_id, file_name, original_file_name, file_url, file_path,
                mime_type, file_size, parse_status, chunk_count, token_count, error_message,
+               retry_count, processing_started_at, processing_finished_at,
                expire_time, create_time, update_time
         from rag_session_document
     </sql>
@@ -50,10 +54,12 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         insert into rag_session_document (
             id, conversation_id, user_id, file_name, original_file_name, file_url, file_path,
             mime_type, file_size, parse_status, chunk_count, token_count, error_message,
+            retry_count, processing_started_at, processing_finished_at,
             expire_time, create_time, update_time
         ) values (
             #{id}, #{conversationId}, #{userId}, #{fileName}, #{originalFileName}, #{fileUrl}, #{filePath},
             #{mimeType}, #{fileSize}, #{parseStatus}, #{chunkCount}, #{tokenCount}, #{errorMessage},
+            #{retryCount}, #{processingStartedAt}, #{processingFinishedAt},
             #{expireTime}, sysdate(), sysdate()
         )
     </insert>
@@ -72,6 +78,9 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
             <if test="parseStatus != null and parseStatus != ''">parse_status = #{parseStatus},</if>
             <if test="chunkCount != null">chunk_count = #{chunkCount},</if>
             <if test="tokenCount != null">token_count = #{tokenCount},</if>
+            <if test="retryCount != null">retry_count = #{retryCount},</if>
+            <if test="processingStartedAt != null">processing_started_at = #{processingStartedAt},</if>
+            <if test="processingFinishedAt != null">processing_finished_at = #{processingFinishedAt},</if>
             error_message = #{errorMessage},
             <if test="expireTime != null">expire_time = #{expireTime},</if>
             update_time = sysdate()
@@ -81,19 +90,23 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 
     <update id="claimSessionDocumentProcessing" parameterType="String">
         update rag_session_document
-        set parse_status = 'PARSING', error_message = null, update_time = sysdate()
+        set parse_status = 'PARSING', error_message = null, processing_started_at = sysdate(),
+            processing_finished_at = null, update_time = sysdate()
         where id = #{id} and parse_status in ('PENDING', 'FAILED')
     </update>
 
     <update id="requestSessionDocumentProcessing" parameterType="String">
         update rag_session_document
-        set parse_status = 'PENDING', error_message = null, update_time = sysdate()
+        set parse_status = 'PENDING', error_message = null, retry_count = coalesce(retry_count, 0) + 1,
+            processing_started_at = null, processing_finished_at = null, update_time = sysdate()
         where id = #{id} and parse_status in ('READY', 'COMPLETED', 'FAILED')
     </update>
 
     <update id="resetInterruptedSessionDocumentProcessing">
         update rag_session_document
-        set parse_status = 'PENDING', error_message = '应用上次退出时任务中断，已自动重新排队', update_time = sysdate()
+        set parse_status = 'PENDING', error_message = '应用上次退出时任务中断，已自动重新排队',
+            retry_count = coalesce(retry_count, 0) + 1,
+            processing_started_at = null, processing_finished_at = null, update_time = sysdate()
         where parse_status in ('PARSING', 'CHUNKING', 'EMBEDDING')
     </update>
 

@@ -10,6 +10,9 @@ import com.tyh.chat.model.ModelRegistry;
 import com.tyh.chat.security.ChatAccessService;
 import com.tyh.chat.security.ChatResourceDeletionService;
 import com.tyh.chat.validation.ChatRequestValidator;
+import com.tyh.common.annotation.Log;
+import com.tyh.common.annotation.RateLimiter;
+import com.tyh.common.enums.LimitType;
 import com.tyh.common.core.domain.AjaxResult;
 import com.tyh.common.core.controller.BaseController;
 import com.tyh.common.core.page.TableDataInfo;
@@ -79,6 +82,7 @@ public class ChatController extends BaseController {
 
     @Operation(summary = "统一对话", description = "统一对话")
     @PostMapping("/send")
+    @RateLimiter(key = "ai:chat:send:", time = 60, count = 30, limitType = LimitType.USER)
     public AjaxResult send(
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     required = true,
@@ -97,8 +101,10 @@ public class ChatController extends BaseController {
         return chatService.chat(request, null);
     }
 
+    @Log
     @Operation(summary = "统一流式对话", description = "统一流式对话")
     @PostMapping("/stream")
+    @RateLimiter(key = "ai:chat:stream:", time = 60, count = 20, limitType = LimitType.USER)
     public SseEmitter stream(@Valid @RequestBody ChatRequest request) {
         requestValidator.validate(request);
         accessService.prepare(request);
@@ -138,6 +144,7 @@ public class ChatController extends BaseController {
 
     @Operation(summary = "文本对话快捷入口", description = "文本对话快捷入口")
     @PostMapping("/text")
+    @RateLimiter(key = "ai:chat:text:", time = 60, count = 30, limitType = LimitType.USER)
     public AjaxResult text(
             @NotBlank(message = "模型名称不能为空") @Size(max = 100) @RequestParam String model,
             @NotBlank(message = "消息不能为空") @Size(max = 20000) @RequestParam String message) {

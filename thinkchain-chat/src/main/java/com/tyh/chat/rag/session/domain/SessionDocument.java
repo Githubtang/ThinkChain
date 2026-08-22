@@ -21,6 +21,9 @@ public class SessionDocument extends BaseEntity {
     private Integer chunkCount;
     private Integer tokenCount;
     private String errorMessage;
+    private Integer retryCount;
+    private Date processingStartedAt;
+    private Date processingFinishedAt;
     private Date expireTime;
 
     public String getId() {
@@ -125,6 +128,30 @@ public class SessionDocument extends BaseEntity {
 
     public void setErrorMessage(String errorMessage) {
         this.errorMessage = errorMessage;
+    }
+
+    public Integer getRetryCount() {
+        return retryCount;
+    }
+
+    public void setRetryCount(Integer retryCount) {
+        this.retryCount = retryCount;
+    }
+
+    public Date getProcessingStartedAt() {
+        return processingStartedAt;
+    }
+
+    public void setProcessingStartedAt(Date processingStartedAt) {
+        this.processingStartedAt = processingStartedAt;
+    }
+
+    public Date getProcessingFinishedAt() {
+        return processingFinishedAt;
+    }
+
+    public void setProcessingFinishedAt(Date processingFinishedAt) {
+        this.processingFinishedAt = processingFinishedAt;
     }
 
     public Date getExpireTime() {

@@ -1,6 +1,8 @@
 package com.tyh.web.controller.chat;
 
 import com.tyh.chat.rag.knowledge.domain.KnowledgeBase;
+import com.tyh.chat.rag.knowledge.dto.KnowledgeBaseCreateRequest;
+import com.tyh.chat.rag.knowledge.dto.KnowledgeBaseUpdateRequest;
 import com.tyh.chat.rag.knowledge.service.KnowledgeBaseService;
 import com.tyh.chat.security.ChatAccessService;
 import com.tyh.chat.security.ChatResourceDeletionService;
@@ -42,9 +44,13 @@ public class KnowledgeBaseController {
 
     @Operation(summary = "创建知识库", description = "创建知识库")
     @PostMapping
-    public AjaxResult create(@Valid @RequestBody KnowledgeBase knowledgeBase) {
-        // 即使请求体带了其他 userId，也会在这里强制覆盖为当前登录用户。
+    public AjaxResult create(@Valid @RequestBody KnowledgeBaseCreateRequest request) {
+        // 请求 DTO 没有 userId 和统计字段，资源归属只能由服务端写入。
+        KnowledgeBase knowledgeBase = new KnowledgeBase();
         knowledgeBase.setUserId(accessService.currentUserId());
+        knowledgeBase.setName(request.getName());
+        knowledgeBase.setDescription(request.getDescription());
+        knowledgeBase.setStatus(request.getStatus());
         knowledgeBaseService.create(knowledgeBase);
         return AjaxResult.success(knowledgeBase);
     }
@@ -64,10 +70,14 @@ public class KnowledgeBaseController {
 
     @Operation(summary = "更新知识库", description = "更新知识库")
     @PutMapping("/{id}")
-    public AjaxResult update(@PathVariable String id, @Valid @RequestBody KnowledgeBase knowledgeBase) {
+    public AjaxResult update(@PathVariable String id, @Valid @RequestBody KnowledgeBaseUpdateRequest request) {
         accessService.requireKnowledgeBase(id);
+        KnowledgeBase knowledgeBase = new KnowledgeBase();
         knowledgeBase.setId(id);
         knowledgeBase.setUserId(accessService.currentUserId());
+        knowledgeBase.setName(request.getName());
+        knowledgeBase.setDescription(request.getDescription());
+        knowledgeBase.setStatus(request.getStatus());
         return AjaxResult.success(knowledgeBaseService.update(knowledgeBase) > 0);
     }
 
